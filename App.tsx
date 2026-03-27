@@ -1,45 +1,40 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useState, useCallback } from 'react';
+import { StatusBar } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { AuthProvider } from './src/context/AuthContext';
+import { ProveedorIdioma } from './src/context/LanguageContext';
+import { MusicPlayerProvider } from './src/context/MusicPlayerContext';
+import { StatsProvider } from './src/context/StatsContext';
+import AppNavigator from './src/navigation/AppNavigator';
+import DevSplashScreen from './src/screens/DevSplashScreen';
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+const App = () => {
+  const [splashDone, setSplashDone] = useState(false);
+  const onSplashFinish = useCallback(() => setSplashDone(true), []);
+
+  if (!splashDone) {
+    return <DevSplashScreen onFinish={onSplashFinish} />;
+  }
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="transparent"
+        translucent
+      />
+      <ProveedorIdioma>
+        <AuthProvider>
+          <StatsProvider>
+            <MusicPlayerProvider>
+              <AppNavigator />
+            </MusicPlayerProvider>
+          </StatsProvider>
+        </AuthProvider>
+      </ProveedorIdioma>
     </SafeAreaProvider>
   );
-}
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
+};
 
 export default App;

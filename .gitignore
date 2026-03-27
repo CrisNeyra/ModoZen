@@ -73,3 +73,13 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Local editor files
+.vscode/
+*.rtf
+*.crdownload
+
+# Generated Android bundle artifacts
+android/app/src/main/assets/
+android/app/src/main/res/raw/
+android/app/src/main/res/drawable-*/
