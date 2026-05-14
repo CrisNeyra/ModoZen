@@ -73,7 +73,7 @@ const CAMINATAS: Caminata[] = [
     intensidad: 'media',
     intensidadIcono: '🟡',
     grad: ['#F59E0B', '#D97706'],
-    pistaAudioIdx: 0, // Lluvia suave
+    pistaAudioIdx: 1, // Lluvia suave
   },
   {
     id: 'w3',
@@ -89,7 +89,7 @@ const CAMINATAS: Caminata[] = [
     intensidad: 'baja',
     intensidadIcono: '🟢',
     grad: ['#F97316', '#EA580C'],
-    pistaAudioIdx: 1, // Olas del mar
+    pistaAudioIdx: 0, // Olas de mar Zen
   },
   {
     id: 'w4',
@@ -111,11 +111,16 @@ const CAMINATAS: Caminata[] = [
 
 const CaminatasScreen: React.FC<Props> = ({ navigation }) => {
   const { idioma, t } = useIdioma();
-  const { seleccionar, reproduciendo, pistaIdx, nombrePista, pista } = useMusicPlayer();
+  const { seleccionar, reproduciendo, pistaIdx, toggleReproduccion } = useMusicPlayer();
   const [caminataActiva, setCaminataActiva] = useState<string | null>(null);
 
   const iniciarCaminata = (cam: Caminata) => {
-    seleccionar(cam.pistaAudioIdx);
+    const pistaActiva = pistaIdx === cam.pistaAudioIdx;
+    if (pistaActiva) {
+      toggleReproduccion();
+    } else {
+      seleccionar(cam.pistaAudioIdx, { autoplay: true, resetProgress: true });
+    }
     setCaminataActiva(cam.id);
     const instrucciones = idioma === 'es' ? cam.instrucciones_es : cam.instrucciones_en;
     const tituloAlert = idioma === 'es' ? `🎧 ${cam.titulo_es}` : `🎧 ${cam.titulo_en}`;

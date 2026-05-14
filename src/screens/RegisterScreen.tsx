@@ -20,7 +20,7 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
-import Video from 'react-native-video';
+import Video, { ViewType } from 'react-native-video';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { useIdioma } from '../context/LanguageContext';
@@ -93,17 +93,39 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     if (!chequeo.valida) { Alert.alert(t.error, t.errorContrasenaInvalida); return; }
     if (contrasena !== confirmarContrasena) { Alert.alert(t.error, t.errorContrasenasNoCoinciden); return; }
     setEstaCargando(true);
-    const exito = await registrarse(nombre.trim(), email.trim().toLowerCase(), contrasena);
+    const resultado = await registrarse(nombre.trim(), email.trim().toLowerCase(), contrasena);
     setEstaCargando(false);
-    if (!exito) Alert.alert(t.error, t.errorRegistroFallido);
+    if (!resultado.exito) {
+      Alert.alert(t.error, resultado.mensaje || t.errorRegistroFallido);
+      return;
+    }
+
+    if (resultado.mensaje) {
+      Alert.alert('Cuenta creada', resultado.mensaje, [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    }
   };
 
   return (
     <View style={estilos.raiz}>
-      <Video source={videoFondo} style={estilos.videoFondo} resizeMode="cover" repeat muted
-        playInBackground={false} playWhenInactive={false} ignoreSilentSwitch="ignore" mixWithOthers="mix"
-        rate={1.0} paused={false} maxBitRate={500000} disableFocus
-        bufferConfig={{ minBufferMs: 5000, maxBufferMs: 15000, bufferForPlaybackMs: 1000, bufferForPlaybackAfterRebufferMs: 2000 }} />
+      <Video
+        source={videoFondo}
+        style={estilos.videoFondo}
+        resizeMode="cover"
+        repeat
+        muted
+        playInBackground={false}
+        playWhenInactive={false}
+        ignoreSilentSwitch="ignore"
+        mixWithOthers="mix"
+        rate={1.0}
+        paused={false}
+        maxBitRate={500000}
+        disableFocus
+        bufferConfig={{ minBufferMs: 5000, maxBufferMs: 15000, bufferForPlaybackMs: 1000, bufferForPlaybackAfterRebufferMs: 2000 }}
+        {...(Platform.OS === 'android' ? { viewType: ViewType.TEXTURE } : {})}
+      />
       <LinearGradient
         colors={['rgba(15,15,35,0.45)', 'rgba(88,28,135,0.35)', 'rgba(15,15,35,0.55)']}
         style={estilos.overlay}
@@ -124,12 +146,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           }]}>
             <View style={estilos.contenedorLogo}>
               {imagenLogo ? (
-                <>
-                  <Image source={imagenLogo} style={estilos.imagenLogo} resizeMode="cover" />
-                  <View style={estilos.overlayLogo}>
-                    <Text style={estilos.textoLogo}>{t.modoZen}</Text>
-                  </View>
-                </>
+                <Image source={imagenLogo} style={estilos.imagenLogo} resizeMode="cover" />
               ) : (
                 <View style={estilos.logoFallback}>
                   <Text style={estilos.emojiLogo}>🧘</Text>
@@ -237,8 +254,6 @@ const estilos = StyleSheet.create({
     elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8,
   },
   imagenLogo: { width: '100%', height: '100%' },
-  overlayLogo: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' },
-  textoLogo: { fontSize: 32, fontWeight: '200', color: 'rgba(255,255,255,0.95)', textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 2, height: 3 }, textShadowRadius: 8, fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Light', letterSpacing: 6 },
   logoFallback: { width: '100%', height: '100%', backgroundColor: colors.primaryLight, justifyContent: 'center', alignItems: 'center' },
   emojiLogo: { fontSize: 36, marginBottom: 6, color: '#FFFFFF', textShadowColor: 'rgba(255,255,255,0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 5 },
   textoFallback: { fontSize: 26, fontWeight: '200', color: '#FFF', fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Light', letterSpacing: 5, textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 2, height: 3 }, textShadowRadius: 8 },

@@ -99,6 +99,30 @@ src/
 - [Instalación de APK](docs/install-android-apk.md)
 - [Resumen para portfolio](docs/portfolio-mode-zen.md)
 
+## Guía Zen (IA + Supabase)
+
+Este repositorio incluye una base inicial para el agente de IA:
+
+- Migración SQL: `supabase/migrations/20260504203000_create_reflexiones_guia_zen.sql`
+- Edge Function: `supabase/functions/guia-zen/index.ts`
+- Pantalla mobile: `src/screens/ReflexionScreen.tsx`
+
+Variables requeridas en Supabase (secrets de Edge Functions):
+
+- `GEMINI_API_KEY` (clave en [Google AI Studio](https://aistudio.google.com/apikey))
+- `GEMINI_MODEL` (opcional, por defecto `gemini-2.0-flash`; podés usar p. ej. `gemini-1.5-flash`)
+
+Deploy sugerido:
+
+```bash
+supabase db push
+supabase functions deploy guia-zen --no-verify-jwt
+```
+
+En el frontend, reemplazá la URL placeholder en `src/services/guiaZenApi.ts` por la URL real de tu proyecto:
+
+`https://<tu-project-ref>.supabase.co/functions/v1/guia-zen`
+
 ## Notas
 
 - Este repositorio usa Git LFS para videos y audios pesados.

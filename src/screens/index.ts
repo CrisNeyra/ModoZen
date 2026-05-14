@@ -36,8 +36,5 @@ export { default as BiofeedbackScreen } from './BiofeedbackScreen';
 /** Pantalla de videos relajantes */
 export { default as VideosRelajantesScreen } from './VideosRelajantesScreen';
 
-/** Pantalla de progreso y estadísticas */
-export { default as ProgresoScreen } from './ProgresoScreen';
-
-/** Pantalla de ajustes */
-export { default as AjustesScreen } from './AjustesScreen';
+/** Pantalla de reflexión con Guía Zen */
+export { default as ReflexionScreen } from './ReflexionScreen';

@@ -4,8 +4,10 @@
 // ============================================================
 
 import React, { createContext, useContext, useState, useRef, useCallback, ReactNode } from 'react';
-import Video, { OnLoadData } from 'react-native-video';
+import { Platform } from 'react-native';
+import Video, { OnLoadData, SelectedVideoTrackType, ViewType } from 'react-native-video';
 import { useIdioma } from './LanguageContext';
+import { useAuth } from './AuthContext';
 
 export interface Pista {
   id: string;
@@ -16,10 +18,11 @@ export interface Pista {
 }
 
 export const PISTAS: Pista[] = [
-  { id: '1', nombre_es: 'Lluvia suave', nombre_en: 'Soft Rain', icono: '🌧️', fuente: require('../assets/audio/lluvia.mp3') },
-  { id: '2', nombre_es: 'Olas del mar', nombre_en: 'Ocean Waves', icono: '🌊', fuente: require('../assets/audio/olas.mp3') },
-  { id: '3', nombre_es: 'Bosque tranquilo', nombre_en: 'Peaceful Forest', icono: '🌿', fuente: require('../assets/audio/bosque.mp3') },
-  { id: '4', nombre_es: 'Fogata crepitante', nombre_en: 'Crackling Fire', icono: '🔥', fuente: require('../assets/audio/fogata.mp3') },
+  { id: '2', nombre_es: 'Olas de mar Zen', nombre_en: 'Zen Ocean Waves', icono: '🌊', fuente: require('../assets/audio/Olas en el Alma.mp3') },
+  { id: '1', nombre_es: 'Lluvia suave', nombre_en: 'Soft Rain', icono: '🌧️', fuente: require('../assets/audio/lluvia suave.mp3') },
+  { id: '3', nombre_es: 'Bosque tranquilo', nombre_en: 'Peaceful Forest', icono: '🌿', fuente: require('../assets/audio/Meditacion en el Bosque.mp3') },
+  { id: '4', nombre_es: 'Fogata crepitante', nombre_en: 'Crackling Fire', icono: '🔥', fuente: require('../assets/audio/Fogata.mp3') },
+  { id: '5', nombre_es: 'Cuencos', nombre_en: 'Singing Bowls', icono: '🔔', fuente: require('../assets/audio/Cuencos.mp3') },
 ];
 
 interface MusicPlayerState {
@@ -42,7 +45,7 @@ interface MusicPlayerActions {
   setRepetir: (val: boolean) => void;
   siguiente: () => void;
   anterior: () => void;
-  seleccionar: (idx: number) => void;
+  seleccionar: (idx: number, options?: { autoplay?: boolean; resetProgress?: boolean }) => void;
   seekTo: (time: number) => void;
   nombrePista: (p: Pista) => string;
 }
@@ -53,6 +56,7 @@ const MusicPlayerContext = createContext<MusicPlayerContextType | undefined>(und
 
 export const MusicPlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { idioma } = useIdioma();
+  const { estaLogueado } = useAuth();
   const [pistaIdx, setPistaIdx] = useState(0);
   const [reproduciendo, setReproduciendo] = useState(false);
   const [duracion, setDuracion] = useState(0);
@@ -86,10 +90,12 @@ export const MusicPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
     setProgreso(0);
   }, [pistaIdx, progreso]);
 
-  const seleccionar = useCallback((idx: number) => {
+  const seleccionar = useCallback((idx: number, options?: { autoplay?: boolean; resetProgress?: boolean }) => {
+    const autoplay = options?.autoplay ?? true;
+    const resetProgress = options?.resetProgress ?? true;
     setPistaIdx(idx);
-    setReproduciendo(true);
-    setProgreso(0);
+    if (autoplay) setReproduciendo(true);
+    if (resetProgress) setProgreso(0);
   }, []);
 
   const toggleReproduccion = useCallback(() => {
@@ -110,24 +116,27 @@ export const MusicPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
       setPistaIdx, setReproduciendo, toggleReproduccion, setVolumen, setAleatorio, setRepetir,
       siguiente, anterior, seleccionar, seekTo, nombrePista,
     }}>
-      {/* Audio global oculto — siempre montado */}
-      <Video
-        ref={reproductorRef}
-        key={`global-audio-${pista.id}`}
-        source={pista.fuente}
-        paused={!reproduciendo}
-        repeat={repetir}
-        volume={volumen}
-        muted={false}
-        playInBackground
-        playWhenInactive
-        ignoreSilentSwitch="ignore"
-        mixWithOthers="mix"
-        onLoad={alCargar}
-        onProgress={alAvanzar}
-        onEnd={() => { if (!repetir) siguiente(); }}
-        style={{ width: 0, height: 0, position: 'absolute', opacity: 0 }}
-      />
+      {/* Solo con sesión iniciada: evita 2× ExoPlayer en Login/Home (rompe fondos en Android). */}
+      {estaLogueado ? (
+        <Video
+          ref={reproductorRef}
+          source={pista.fuente}
+          paused={!reproduciendo}
+          repeat={repetir}
+          volume={volumen}
+          muted={false}
+          playInBackground
+          playWhenInactive
+          ignoreSilentSwitch="ignore"
+          mixWithOthers="mix"
+          selectedVideoTrack={{ type: SelectedVideoTrackType.DISABLED }}
+          onLoad={alCargar}
+          onProgress={alAvanzar}
+          onEnd={() => { if (!repetir) siguiente(); }}
+          style={{ width: 0, height: 0, position: 'absolute', opacity: 0 }}
+          {...(Platform.OS === 'android' ? { viewType: ViewType.TEXTURE } : {})}
+        />
+      ) : null}
       {children}
     </MusicPlayerContext.Provider>
   );

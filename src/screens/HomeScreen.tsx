@@ -16,13 +16,10 @@ import {
   Platform,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Modal,
-  TextInput,
 } from 'react-native';
-import Video from 'react-native-video';
+import Video, { ViewType } from 'react-native-video';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { useIdioma } from '../context/LanguageContext';
@@ -30,7 +27,7 @@ import { useStats } from '../context/StatsContext';
 import MusicPlayer from '../components/MusicPlayer';
 
 const { width: ANCHO, height: ALTO } = Dimensions.get('window');
-const videoFondo = require('../assets/background.mp4.mp4');
+const videoFondo = require('../assets/background.mp4');
 
 type ListaPantallas = {
   Home: { fromMeditation?: boolean } | undefined;
@@ -40,12 +37,12 @@ type ListaPantallas = {
   Ajustes: undefined;
   Historias: undefined;
   VideosRelajantes: undefined;
+  Reflexion: undefined;
   Caminatas: undefined;
   Biofeedback: undefined;
 };
 type Nav = NativeStackNavigationProp<ListaPantallas, 'Home'>;
-type HomeRoute = RouteProp<ListaPantallas, 'Home'>;
-interface Props { navigation: Nav; route: HomeRoute; }
+interface Props { navigation: Nav; }
 
 const obtenerClavesSaludo = (): string => {
   const h = new Date().getHours();
@@ -66,12 +63,12 @@ const SESION_ESTILOS = [
   { gradiente: ['#F97316', '#EA580C'], icono: '🎯', horario: ['manana', 'mediodia', 'tarde'] },
 ];
 
-const CLAVE_FEEDBACK = '@ModoZen:feedbackApp';
+const CLAVE_ULTIMA_FRASE_POSITIVA_IDX = '@ModoZen:ultimaFrasePositivaIdx';
 
-const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
+const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { usuario, cerrarSesion } = useAuth();
   const { t } = useIdioma();
-  const { diasSeguidos, minutosHoy, sesionesTotales } = useStats();
+  const { diasSeguidos, minutosHoy, sesionesTotales, sesionesPorDia } = useStats();
   const scrollRef = useRef<ScrollView>(null);
 
   // Animaciones de entrada escalonadas
@@ -89,40 +86,31 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
     ]).start();
   }, [animEntrada, animSaludo, animFrase, animSesiones]);
 
-  // Modal de feedback
-  const [mostrarFeedback, setMostrarFeedback] = useState(false);
-  const [feedbackEstrellas, setFeedbackEstrellas] = useState(0);
-  const [feedbackTexto, setFeedbackTexto] = useState('');
+  const [frasePositivaIdx, setFrasePositivaIdx] = useState(0);
 
   useEffect(() => {
-    if (route.params?.fromMeditation) {
-      const timer = setTimeout(() => setMostrarFeedback(true), 800);
-      navigation.setParams({ fromMeditation: undefined });
-      return () => clearTimeout(timer);
-    }
-  }, [route.params?.fromMeditation, navigation]);
+    const elegirFrasePositiva = async () => {
+      if (!t.frases.length) return;
+      const fallback = Math.floor(Math.random() * t.frases.length);
+      try {
+        const rawLastIdx = await AsyncStorage.getItem(CLAVE_ULTIMA_FRASE_POSITIVA_IDX);
+        const lastIdx = rawLastIdx !== null ? Number(rawLastIdx) : -1;
+        let nextIdx = fallback;
+        if (t.frases.length > 1) {
+          const salto = 1 + Math.floor(Math.random() * (t.frases.length - 1));
+          const safeLastIdx = Number.isFinite(lastIdx) && lastIdx >= 0 ? lastIdx : 0;
+          nextIdx = (safeLastIdx + salto) % t.frases.length;
+        }
+        setFrasePositivaIdx(nextIdx);
+        await AsyncStorage.setItem(CLAVE_ULTIMA_FRASE_POSITIVA_IDX, String(nextIdx));
+      } catch {
+        setFrasePositivaIdx(fallback);
+      }
+    };
+    elegirFrasePositiva();
+  }, [t.frases]);
 
-  const enviarFeedback = async () => {
-    try {
-      await AsyncStorage.setItem(CLAVE_FEEDBACK, JSON.stringify({
-        estrellas: feedbackEstrellas, comentario: feedbackTexto, fecha: new Date().toISOString(),
-      }));
-    } catch {}
-    setMostrarFeedback(false);
-    setFeedbackEstrellas(0);
-    setFeedbackTexto('');
-  };
-
-  const cerrarFeedback = () => {
-    setMostrarFeedback(false);
-    setFeedbackEstrellas(0);
-    setFeedbackTexto('');
-  };
-
-  const fraseDelDia = useMemo(() => {
-    const idx = new Date().getDate() % t.frases.length;
-    return t.frases[idx];
-  }, [t]);
+  const fraseDelDia = t.frases[frasePositivaIdx] ?? t.frases[0] ?? '';
 
   const claveSaludo = obtenerClavesSaludo();
   const saludo = (t as any)[claveSaludo] || t.saludo_manana;
@@ -131,7 +119,6 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
   // Scroll indicator
   const [mostrarScroll, setMostrarScroll] = useState(true);
   const animScroll = useRef(new Animated.Value(1)).current;
-  const scrollInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const animBounce = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -153,14 +140,12 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  const iniciarAutoScroll = useCallback(() => {
-    scrollInterval.current = setInterval(() => {
-      scrollRef.current?.scrollTo({ y: 99999, animated: true });
-    }, 50);
+  const desplazarVertical = useCallback(() => {
+    scrollRef.current?.scrollTo({ y: ALTO * 0.62, animated: true });
   }, []);
 
-  const detenerAutoScroll = useCallback(() => {
-    if (scrollInterval.current) { clearInterval(scrollInterval.current); scrollInterval.current = null; }
+  const irAPaginaHorizontal = useCallback((pagina: 0 | 1) => {
+    hScrollRef.current?.scrollTo({ x: ANCHO * pagina, animated: true });
   }, []);
 
   const sesionesTodas = useMemo(() => [
@@ -188,6 +173,23 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
     const resto = sesionesTodas.filter(s => !s.horario.includes(franjaHoraria));
     return [...sugeridas, ...resto];
   }, [sesionesTodas, franjaHoraria]);
+
+  const minutosPorDiaSemana = useMemo(() => {
+    const acumulado = Array(7).fill(0) as number[];
+    for (const [fecha, minutos] of Object.entries(sesionesPorDia)) {
+      const dia = new Date(`${fecha}T12:00:00`).getDay();
+      const idxLunesPrimero = (dia + 6) % 7;
+      acumulado[idxLunesPrimero] += minutos;
+    }
+    return acumulado;
+  }, [sesionesPorDia]);
+
+  const maxMinutosSemana = Math.max(...minutosPorDiaSemana, 1);
+
+  const etiquetasSemana = useMemo(
+    () => (t.volver === 'Back' ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']),
+    [t.volver],
+  );
 
   // Glow pulsante
   const animGlow = useRef(new Animated.Value(0.4)).current;
@@ -269,9 +271,22 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <View style={estilos.raiz}>
-      <Video source={videoFondo} style={estilos.videoFondo} resizeMode="cover" repeat muted
-        playInBackground={false} playWhenInactive={false} ignoreSilentSwitch="ignore" mixWithOthers="mix"
-        rate={1.0} paused={false} maxBitRate={500000} disableFocus />
+      <Video
+        source={videoFondo}
+        style={estilos.videoFondo}
+        resizeMode="cover"
+        repeat
+        muted
+        playInBackground={false}
+        playWhenInactive={false}
+        ignoreSilentSwitch="ignore"
+        mixWithOthers="mix"
+        rate={1.0}
+        paused={false}
+        maxBitRate={500000}
+        disableFocus
+        {...(Platform.OS === 'android' ? { viewType: ViewType.TEXTURE } : {})}
+      />
       <LinearGradient
         colors={['rgba(15,15,35,0.3)', 'rgba(26,26,46,0.45)', 'rgba(15,15,35,0.55)']}
         style={estilos.overlay}
@@ -337,6 +352,22 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
           </LinearGradient>
         </Animated.View>
 
+        <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('Reflexion')} style={estilos.reflexionCardWrap}>
+          <LinearGradient
+            colors={['#A855F7', '#7E22CE', 'rgba(0,0,0,0.15)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={estilos.reflexionCard}
+          >
+            <Text style={estilos.reflexionIcon}>🫶</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={estilos.reflexionTitulo}>Reflexión guiada</Text>
+              <Text style={estilos.reflexionDesc}>Contale al Guía Zen cómo te sentís hoy</Text>
+            </View>
+            <Text style={estilos.reflexionSpark}>✧</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
         {/* ─── Reproductor ─── */}
         <Animated.View style={{
           opacity: animFrase,
@@ -386,29 +417,15 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         </Animated.View>
 
-        {/* ─── Acciones rápidas ─── */}
-        <View style={estilos.accionesRow}>
-          {[
-            { onPress: () => navigation.navigate('Sonidos'), icono: '🎶', texto: t.sonidos, grad: ['#06B6D4', '#0891B2'] as [string, string] },
-            { onPress: () => navigation.navigate('Progreso'), icono: '📊', texto: t.progreso, grad: ['#8B5CF6', '#7C3AED'] as [string, string] },
-            { onPress: () => navigation.navigate('Ajustes'), icono: '⚙️', texto: t.ajustes, grad: ['#6B7280', '#4B5563'] as [string, string] },
-          ].map((a, i) => (
-            <TouchableOpacity key={i} activeOpacity={0.8} onPress={a.onPress}>
-              <LinearGradient colors={a.grad} style={estilos.accionBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                <Text style={estilos.accionIcono}>{a.icono}</Text>
-                <Text style={estilos.accionTxt}>{a.texto}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          ))}
-        </View>
-
         {/* ─── Swipe hint (bottom pill) ─── */}
         {paginaActual === 0 && !hizoSwipe && (
-          <Animated.View style={[estilos.swipeHint, {
+          <Animated.View style={[{
             opacity: animSwipeHint.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.85] }),
             transform: [{ translateX: animSwipeHint.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) }],
           }]}>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => irAPaginaHorizontal(1)} style={estilos.swipeHint}>
             <Text style={estilos.swipeHintTxt}>{t.deslizaExplorar || 'Deslizá para explorar'} →</Text>
+            </TouchableOpacity>
           </Animated.View>
         )}
 
@@ -419,7 +436,7 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
       {mostrarScroll && paginaActual === 0 && (
         <Animated.View style={[estilos.scrollIndicador, { opacity: animScroll, transform: [{ translateY: animBounce }] }]}
           pointerEvents="box-only">
-          <TouchableOpacity activeOpacity={0.6} onPressIn={iniciarAutoScroll} onPressOut={detenerAutoScroll}
+          <TouchableOpacity activeOpacity={0.6} onPress={desplazarVertical}
             style={estilos.scrollBoton}>
             <Text style={estilos.scrollArrow}>▼</Text>
             <Text style={estilos.scrollTxt}>{t.deslizaVerMas}</Text>
@@ -469,30 +486,59 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
               </TouchableOpacity>
             ))}
 
-            {/* ─── Mini stats ─── */}
-            <View style={[estilos.seccionHeader, { marginTop: 20 }]}>
-              <Text style={estilos.seccionEmoji}>📊</Text>
-              <Text style={estilos.seccionTitulo}>{t.progreso}</Text>
+            <View style={estilos.progresoCard}>
+              <View style={[estilos.seccionHeader, { marginTop: 0, marginBottom: 10 }]}>
+                <Text style={estilos.seccionEmoji}>📊</Text>
+                <Text style={estilos.seccionTitulo}>{t.progreso} semanal</Text>
             </View>
-            <View style={estilos.statsRow}>
-              {[
-                { num: `${diasSeguidos}`, label: t.diasSeguidos, icono: '🔥' },
-                { num: `${minutosHoy}`, label: t.minutosHoy, icono: '⏱️' },
-                { num: `${sesionesTotales}`, label: t.sesiones, icono: '🧘' },
-              ].map((stat, i) => (
-                <View key={i} style={estilos.statCard}>
-                  <Text style={estilos.statIcono}>{stat.icono}</Text>
-                  <Text style={estilos.statNum}>{stat.num}</Text>
-                  <Text style={estilos.statLabel}>{stat.label}</Text>
-                </View>
-              ))}
+              <View style={estilos.statsRow}>
+                {[
+                  { num: `${diasSeguidos}`, label: t.diasSeguidos, icono: '🔥' },
+                  { num: `${minutosHoy}`, label: t.minutosHoy, icono: '⏱️' },
+                  { num: `${sesionesTotales}`, label: t.sesiones, icono: '🧘' },
+                ].map((stat, i) => (
+                  <View key={i} style={estilos.statCard}>
+                    <Text style={estilos.statIcono}>{stat.icono}</Text>
+                    <Text style={estilos.statNum}>{stat.num}</Text>
+                    <Text style={estilos.statLabel}>{stat.label}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={estilos.heatmapGrid}>
+                {minutosPorDiaSemana.map((minutos, idx) => {
+                  const intensidad = minutos / maxMinutosSemana;
+                  const color =
+                    intensidad === 0
+                      ? 'rgba(255,255,255,0.08)'
+                      : intensidad < 0.35
+                        ? '#4C1D95'
+                        : intensidad < 0.65
+                          ? '#7E22CE'
+                          : '#C084FC';
+                  return (
+                    <View key={`${etiquetasSemana[idx]}-${idx}`} style={estilos.heatmapDia}>
+                      <View style={[estilos.heatmapCelda, { backgroundColor: color }]} />
+                      <Text style={estilos.heatmapLabel}>{etiquetasSemana[idx]}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+
+              <View style={estilos.heatmapLegend}>
+                <Text style={estilos.heatmapLegendTxt}>Menos</Text>
+                <View style={[estilos.heatmapLegendDot, { backgroundColor: 'rgba(255,255,255,0.08)' }]} />
+                <View style={[estilos.heatmapLegendDot, { backgroundColor: '#4C1D95' }]} />
+                <View style={[estilos.heatmapLegendDot, { backgroundColor: '#7E22CE' }]} />
+                <View style={[estilos.heatmapLegendDot, { backgroundColor: '#C084FC' }]} />
+                <Text style={estilos.heatmapLegendTxt}>Más</Text>
+              </View>
             </View>
 
             {/* ─── Acceso rápido extra ─── */}
             <View style={estilos.accionesRow}>
               {[
                 { onPress: () => navigation.navigate('Sonidos'), icono: '🎶', texto: t.sonidos, grad: ['#06B6D4', '#0891B2'] as [string, string] },
-                { onPress: () => navigation.navigate('Progreso'), icono: '📊', texto: t.progreso, grad: ['#8B5CF6', '#7C3AED'] as [string, string] },
                 { onPress: () => navigation.navigate('Ajustes'), icono: '⚙️', texto: t.ajustes, grad: ['#6B7280', '#4B5563'] as [string, string] },
               ].map((a, i) => (
                 <TouchableOpacity key={i} activeOpacity={0.8} onPress={a.onPress}>
@@ -512,75 +558,44 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
       {/* ─── Floating right-edge swipe indicator ─── */}
       {!hizoSwipe && paginaActual === 0 && (
         <Animated.View
-          pointerEvents="none"
           style={[
             estilos.floatingSwipe,
             {
-              opacity: animSwipeHint.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.9] }),
+              opacity: animSwipeHint.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
               transform: [{
                 translateX: animSwipeArrow.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }),
               }],
             },
           ]}
         >
-          <Text style={estilos.floatingSwipeArrow}>›</Text>
+          <TouchableOpacity onPress={() => irAPaginaHorizontal(1)} activeOpacity={0.9}>
+            <Text style={estilos.floatingSwipeArrow}>›</Text>
+          </TouchableOpacity>
         </Animated.View>
       )}
 
       {/* ─── Page dots ─── */}
       <View style={estilos.dotsRow}>
         {[0, 1].map(i => (
-          <Animated.View key={i} style={[
-            estilos.dot,
-            {
-              backgroundColor: animDot.interpolate({
-                inputRange: [0, 1],
-                outputRange: i === 0 ? ['#C084FC', 'rgba(255,255,255,0.25)'] : ['rgba(255,255,255,0.25)', '#C084FC'],
-              }),
-              transform: [{
-                scale: animDot.interpolate({
+          <TouchableOpacity key={i} onPress={() => irAPaginaHorizontal(i as 0 | 1)} activeOpacity={0.9}>
+            <Animated.View style={[
+              estilos.dot,
+              {
+                backgroundColor: animDot.interpolate({
                   inputRange: [0, 1],
-                  outputRange: i === 0 ? [1.3, 0.8] : [0.8, 1.3],
+                  outputRange: i === 0 ? ['#C084FC', 'rgba(255,255,255,0.25)'] : ['rgba(255,255,255,0.25)', '#C084FC'],
                 }),
-              }],
-            },
-          ]} />
+                transform: [{
+                  scale: animDot.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: i === 0 ? [1.3, 0.8] : [0.8, 1.3],
+                  }),
+                }],
+              },
+            ]} />
+          </TouchableOpacity>
         ))}
       </View>
-
-      {/* ─── Modal Feedback ─── */}
-      <Modal visible={mostrarFeedback} transparent animationType="fade" onRequestClose={cerrarFeedback}>
-        <View style={estilos.modalOverlay}>
-          <View style={estilos.modalCard}>
-            <LinearGradient
-              colors={['rgba(147,51,234,0.3)', 'rgba(99,102,241,0.2)']}
-              style={estilos.modalGradiente} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-              <Text style={estilos.modalEmoji}>💜</Text>
-              <Text style={estilos.modalTitulo}>¿Te gusta la app?</Text>
-              <Text style={estilos.modalSub}>Tu opinión nos ayuda a mejorar</Text>
-              <View style={estilos.modalEstrellas}>
-                {[1, 2, 3, 4, 5].map(e => (
-                  <TouchableOpacity key={e} onPress={() => setFeedbackEstrellas(e)} style={estilos.modalStarBtn}>
-                    <Text style={estilos.modalStar}>{e <= feedbackEstrellas ? '⭐' : '☆'}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TextInput style={estilos.modalInput} placeholder="Contanos qué podemos mejorar..."
-                placeholderTextColor="rgba(255,255,255,0.4)" multiline maxLength={500}
-                value={feedbackTexto} onChangeText={setFeedbackTexto} />
-              <Text style={estilos.modalCharCount}>{feedbackTexto.length}/500</Text>
-              <TouchableOpacity style={estilos.modalBtnEnviar} onPress={enviarFeedback} activeOpacity={0.8}>
-                <LinearGradient colors={['#9333EA', '#7C3AED']} style={estilos.modalBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                  <Text style={estilos.modalBtnEnviarTxt}>Enviar ✨</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-              <TouchableOpacity style={estilos.modalBtnCerrar} onPress={cerrarFeedback}>
-                <Text style={estilos.modalBtnCerrarTxt}>Ahora no</Text>
-              </TouchableOpacity>
-            </LinearGradient>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
@@ -623,6 +638,41 @@ const estilos = StyleSheet.create({
     fontSize: 21, color: '#FFF', fontStyle: 'italic', lineHeight: 32, textAlign: 'center',
     fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Light', letterSpacing: 0.3,
   },
+  reflexionCardWrap: { marginTop: -6, marginBottom: 16 },
+  reflexionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 18,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  reflexionIcon: { fontSize: 28, marginRight: 12 },
+  reflexionTitulo: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium',
+  },
+  reflexionDesc: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.75)',
+    marginTop: 2,
+    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Light',
+  },
+  reflexionSpark: {
+    fontSize: 26,
+    color: '#F5D0FE',
+    marginLeft: 8,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+    textShadowColor: 'rgba(245,208,254,0.45)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
   sparkleRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 10, gap: 16 },
   sparkle: { fontSize: 16, color: '#C084FC' },
   seccionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 8 },
@@ -648,6 +698,53 @@ const estilos = StyleSheet.create({
   statLabel: {
     fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 4, textTransform: 'uppercase',
     letterSpacing: 0.5, textAlign: 'center', fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir',
+  },
+  progresoCard: {
+    marginTop: 20,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  heatmapGrid: {
+    marginTop: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+  heatmapDia: { alignItems: 'center', flex: 1 },
+  heatmapCelda: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    marginBottom: 6,
+  },
+  heatmapLabel: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.55)',
+    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir',
+  },
+  heatmapLegend: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  heatmapLegendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  heatmapLegendTxt: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.55)',
+    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir',
   },
   gridSesiones: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   tarjetaSesion: {
@@ -675,7 +772,8 @@ const estilos = StyleSheet.create({
   accionesRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, marginBottom: 6, gap: 10 },
   accionBtn: {
     alignItems: 'center', borderRadius: 18, paddingHorizontal: 22, paddingVertical: 16,
-    minWidth: (ANCHO - 60) / 3,
+    minWidth: (ANCHO - 56) / 2,
+    flex: 1,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 6,
   },
   accionIcono: { fontSize: 24, marginBottom: 6 },
@@ -694,42 +792,6 @@ const estilos = StyleSheet.create({
     fontSize: 11, color: 'rgba(255,255,255,0.45)',
     fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Light',
   },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  modalCard: {
-    borderRadius: 28, width: '100%', maxWidth: 380, overflow: 'hidden',
-    shadowColor: '#9333EA', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 30, elevation: 15,
-  },
-  modalGradiente: {
-    padding: 28, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(147,51,234,0.4)',
-    borderRadius: 28, backgroundColor: '#1E1E3A',
-  },
-  modalEmoji: { fontSize: 52, marginBottom: 14 },
-  modalTitulo: {
-    fontSize: 24, fontWeight: '600', color: '#FFF', marginBottom: 6, textAlign: 'center',
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium',
-  },
-  modalSub: {
-    fontSize: 14, color: 'rgba(255,255,255,0.55)', marginBottom: 22, textAlign: 'center',
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Light',
-  },
-  modalEstrellas: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 22 },
-  modalStarBtn: { padding: 4 },
-  modalStar: { fontSize: 36 },
-  modalInput: {
-    width: '100%', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 16,
-    fontSize: 14, color: '#FFF', minHeight: 90, textAlignVertical: 'top',
-    borderWidth: 1, borderColor: 'rgba(147,51,234,0.25)',
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir',
-  },
-  modalCharCount: { alignSelf: 'flex-end', fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4, marginBottom: 18 },
-  modalBtnEnviar: { width: '100%', borderRadius: 18, overflow: 'hidden' },
-  modalBtnGrad: { paddingVertical: 16, alignItems: 'center', borderRadius: 18 },
-  modalBtnEnviarTxt: {
-    color: '#FFF', fontSize: 16, fontWeight: '500', letterSpacing: 0.5,
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium',
-  },
-  modalBtnCerrar: { marginTop: 14, padding: 8 },
-  modalBtnCerrarTxt: { color: 'rgba(255,255,255,0.4)', fontSize: 14, fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir' },
   // ─── Horizontal paging ───
   dotsRow: {
     position: 'absolute', bottom: 12, alignSelf: 'center', flexDirection: 'row', gap: 8,
@@ -749,12 +811,14 @@ const estilos = StyleSheet.create({
   },
   floatingSwipe: {
     position: 'absolute', right: 0, top: '45%',
-    backgroundColor: 'rgba(147,51,234,0.35)',
-    paddingVertical: 20, paddingHorizontal: 6,
+    backgroundColor: 'rgba(147,51,234,0.75)',
+    paddingVertical: 22, paddingHorizontal: 8,
     borderTopLeftRadius: 14, borderBottomLeftRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.65)',
   },
   floatingSwipeArrow: {
-    fontSize: 22, color: '#E9D5FF', fontWeight: '700',
+    fontSize: 26, color: '#FFFFFF', fontWeight: '800',
   },
   // ─── Explore page cards ───
   exploreCard: {

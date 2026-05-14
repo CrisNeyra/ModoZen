@@ -83,16 +83,18 @@ const traducciones = {
 
     // --- Frases del día ---
     frases: [
-      'Hoy es un día perfecto para ser feliz',
-      'Sos más fuerte de lo que creés, más valiente de lo que pensás',
-      'Cada amanecer trae nuevas oportunidades maravillosas',
-      'Tu energía positiva puede mover montañas',
-      'Sonreí, el universo conspira a tu favor',
-      'La mejor versión de vos está floreciendo ahora mismo',
-      'Confiá en tu camino, todo llega en el momento perfecto',
-      'Hoy elijo la alegría, la paz y el amor propio',
-      'Sos luz, sos fuerza, sos magia pura',
-      'El mundo necesita tu sonrisa hoy',
+      'Hoy es un buen día para hablarte con cariño.',
+      'Respirá, bajá un cambio y volvés a vos.',
+      'Sos más fuerte de lo que creés.',
+      'Tu calma también es una forma de valentía.',
+      'Un paso suave hoy vale un montón.',
+      'Confiá en tu camino, estás creciendo.',
+      'Tu energía cambia cuando te tratás bien.',
+      'Todo pasa, vos seguí respirando.',
+      'Merecés paz, incluso en días difíciles.',
+      'Tu luz no se apaga, solo se acomoda.',
+      'Hoy elegí cuidarte un poquito más.',
+      'Siempre podés volver a empezar, desde ahora.',
     ],
 
     // --- Sesiones de meditación ---
@@ -245,16 +247,18 @@ const traducciones = {
 
     // --- Frases del día ---
     frases: [
-      'Today is a perfect day to be happy',
-      'You are stronger than you think, braver than you believe',
-      'Every sunrise brings new wonderful opportunities',
-      'Your positive energy can move mountains',
-      'Smile, the universe conspires in your favor',
-      'The best version of you is blossoming right now',
-      'Trust your path, everything arrives at the perfect moment',
-      'Today I choose joy, peace and self-love',
-      'You are light, you are strength, you are pure magic',
-      'The world needs your smile today',
+      'Today is a good day to be kind to yourself.',
+      'Take a breath and come back to your center.',
+      'You are stronger than you think.',
+      'Calm is also a kind of courage.',
+      'One gentle step today is enough.',
+      'Trust your path, you are growing.',
+      'Your energy shifts when you treat yourself with care.',
+      'This will pass, keep breathing.',
+      'You deserve peace, even on hard days.',
+      'Your light is still there, always.',
+      'Choose yourself a little more today.',
+      'You can begin again, starting now.',
     ],
 
     // --- Sesiones de meditación ---

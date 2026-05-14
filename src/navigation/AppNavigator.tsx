@@ -25,6 +25,7 @@ import HistoriasScreen from '../screens/HistoriasScreen';
 import CaminatasScreen from '../screens/CaminatasScreen';
 import BiofeedbackScreen from '../screens/BiofeedbackScreen';
 import VideosRelajantesScreen from '../screens/VideosRelajantesScreen';
+import ReflexionScreen from '../screens/ReflexionScreen';
 import MiniMusicPlayer from '../components/MiniMusicPlayer';
 // Colores del tema
 import { colors } from '../theme/colors';
@@ -40,6 +41,7 @@ export type ListaPantallas = {
   Ajustes: undefined;
   Historias: undefined;
   VideosRelajantes: undefined;
+  Reflexion: undefined;
   Caminatas: undefined;
   Biofeedback: undefined;
 };
@@ -48,7 +50,7 @@ export type ListaPantallas = {
 const Stack = createNativeStackNavigator<ListaPantallas>();
 
 /** Pantallas donde el mini-player NO se muestra */
-const PANTALLAS_SIN_PLAYER = ['VideosRelajantes', 'MeditationSession', 'Login', 'Register', 'Sonidos'];
+const PANTALLAS_SIN_PLAYER = ['Home', 'VideosRelajantes', 'MeditationSession', 'Login', 'Register', 'Sonidos', 'Reflexion'];
 
 /** Extrae el nombre de la ruta activa de un NavigationState */
 const getActiveRouteName = (state?: NavigationState): string => {
@@ -108,6 +110,7 @@ const AppNavigator: React.FC = () => {
               <Stack.Screen name="Ajustes" component={AjustesScreen} options={{ animation: 'slide_from_right' }} />
               <Stack.Screen name="Historias" component={HistoriasScreen} options={{ animation: 'slide_from_right' }} />
               <Stack.Screen name="VideosRelajantes" component={VideosRelajantesScreen} options={{ animation: 'slide_from_right' }} />
+              <Stack.Screen name="Reflexion" component={ReflexionScreen} options={{ animation: 'slide_from_right' }} />
               <Stack.Screen name="Caminatas" component={CaminatasScreen} options={{ animation: 'slide_from_right' }} />
               <Stack.Screen name="Biofeedback" component={BiofeedbackScreen} options={{ animation: 'slide_from_right' }} />
             </>

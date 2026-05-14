@@ -21,7 +21,7 @@ import {
   Animated,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Video from 'react-native-video';
+import Video, { ViewType } from 'react-native-video';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { useIdioma } from '../context/LanguageContext';
@@ -100,10 +100,23 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={estilos.contenedorPrincipal}>
-      <Video source={videoFondoLogin} style={estilos.videoFondo} resizeMode="cover" repeat muted
-        playInBackground={false} playWhenInactive={false} ignoreSilentSwitch="ignore" mixWithOthers="mix"
-        rate={1.0} paused={false} maxBitRate={500000} disableFocus
-        bufferConfig={{ minBufferMs: 5000, maxBufferMs: 15000, bufferForPlaybackMs: 1000, bufferForPlaybackAfterRebufferMs: 2000 }} />
+      <Video
+        source={videoFondoLogin}
+        style={estilos.videoFondo}
+        resizeMode="cover"
+        repeat
+        muted
+        playInBackground={false}
+        playWhenInactive={false}
+        ignoreSilentSwitch="ignore"
+        mixWithOthers="mix"
+        rate={1.0}
+        paused={false}
+        maxBitRate={500000}
+        disableFocus
+        bufferConfig={{ minBufferMs: 5000, maxBufferMs: 15000, bufferForPlaybackMs: 1000, bufferForPlaybackAfterRebufferMs: 2000 }}
+        {...(Platform.OS === 'android' ? { viewType: ViewType.TEXTURE } : {})}
+      />
       <LinearGradient
         colors={['rgba(15,15,35,0.45)', 'rgba(88,28,135,0.35)', 'rgba(15,15,35,0.55)']}
         style={estilos.overlayVideo}
@@ -195,8 +208,8 @@ const estilos = StyleSheet.create({
   textoIdioma: { color: '#FFF', fontSize: 13, fontWeight: '500', fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium', letterSpacing: 0.5 },
   contenedor: { flex: 1, backgroundColor: 'transparent' },
   contenidoScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  contenedorEncabezado: { alignItems: 'center', marginBottom: 32, marginTop: 20 },
-  contenedorLogo: { width: 140, height: 140, borderRadius: 70, overflow: 'hidden', marginBottom: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' },
+  contenedorEncabezado: { alignItems: 'center', marginBottom: 32, marginTop: height * 0.06 },
+  contenedorLogo: { width: 126, height: 126, borderRadius: 63, overflow: 'hidden', marginBottom: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' },
   imagenLogo: { width: '120%', height: '120%' },
   // Frase motivacional — degradé púrpura al centro
   contenedorSubtitulo: {

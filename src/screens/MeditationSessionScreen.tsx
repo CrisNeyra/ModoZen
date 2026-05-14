@@ -17,14 +17,16 @@ import {
   Dimensions,
   Platform,
   TextInput,
+  Image,
 } from 'react-native';
-import Video from 'react-native-video'; // Video de fondo decorativo
+import Video, { ViewType } from 'react-native-video'; // Video de fondo decorativo
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Persistencia local
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import type { ListaPantallas } from '../navigation/AppNavigator';
 import { useStats } from '../context/StatsContext';
+import { useRatingPrompt } from '../context/RatingPromptContext';
 import MiniMusicPlayer from '../components/MiniMusicPlayer';
 
 // Dimensiones de pantalla
@@ -34,25 +36,19 @@ type NavegacionSesion = NativeStackNavigationProp<ListaPantallas, 'MeditationSes
 type RutaSesion = RouteProp<ListaPantallas, 'MeditationSession'>;
 
 const CLAVE_ESTADISTICAS = '@modozen/estadisticas-meditacion';
-const videoFondoPredeterminado = require('../assets/background.mp4.mp4');
+const videoFondoPredeterminado = require('../assets/background.mp4');
 
-const VIDEOS_SESION: Record<string, any> = {
-  '1': require('../assets/videos/session-1.mp4'),
-  '2': require('../assets/videos/session-2.mp4'),
-  '3': require('../assets/videos/session-3.mp4'),
-  '4': require('../assets/videos/session-4.mp4'),
-  '5': require('../assets/videos/session-5.mp4'),
-  '6': require('../assets/videos/session-6.mp4'),
+/** Fondo por sesión: mp4 en `assets/videos/sesion-*`; la 6 es imagen (`sesion-6.jpg`). */
+type FondoSesion = { tipo: 'video'; source: any } | { tipo: 'imagen'; source: any };
+
+const FONDOS_SESION: Record<string, FondoSesion> = {
+  '1': { tipo: 'video', source: require('../assets/videos/sesion-1.mp4') },
+  '2': { tipo: 'video', source: require('../assets/videos/sesion-2.mp4') },
+  '3': { tipo: 'video', source: require('../assets/videos/sesion-3.mp4') },
+  '4': { tipo: 'video', source: require('../assets/videos/sesion-4.mp4') },
+  '5': { tipo: 'video', source: require('../assets/videos/sesion-5.mp4') },
+  '6': { tipo: 'imagen', source: require('../assets/videos/sesion-6.jpg') },
 };
-
-/** Sonidos ambientales disponibles durante la meditacion */
-const SONIDOS_AMBIENTALES = [
-  { id: 'silence', icon: '🔕', label: 'Silencio' },
-  { id: 'rain', icon: '🌧️', label: 'Lluvia' },
-  { id: 'ocean', icon: '🌊', label: 'Océano' },
-  { id: 'forest', icon: '🌲', label: 'Bosque' },
-  { id: 'bowls', icon: '🔔', label: 'Cuencos' },
-];
 
 const ESTADOS_ANIMO = [
   { id: 'peaceful', icon: '😌', label: 'En paz' },
@@ -336,9 +332,10 @@ const datosSesiones: Record<string, DatosSesion> = {
 const MeditationSessionScreen: React.FC<Props> = ({ navigation, route }) => {
   const { sessionId: idSesion } = route.params;
   const sesion = datosSesiones[idSesion];
-  const videoFondoSesion = VIDEOS_SESION[idSesion] ?? videoFondoPredeterminado;
+  const fondoSesion: FondoSesion = FONDOS_SESION[idSesion] ?? { tipo: 'video', source: videoFondoPredeterminado };
   const { registrarSesion } = useStats();
-  
+  const { trackInteraction } = useRatingPrompt();
+
   // Fase actual del flujo: 'preview' | 'mood-before' | 'active' | 'mood-after' | 'completed'
   const [fase, setFase] = useState<string>('preview');
   const [indicePasoActual, setIndicePasoActual] = useState(0);
@@ -348,7 +345,6 @@ const MeditationSessionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [conteoRespiracion, setConteoRespiracion] = useState(0);
   
   // Estado de funciones premium
-  const [ambienteSeleccionado, setAmbienteSeleccionado] = useState('silence');
   const [animoAntes, setAnimoAntes] = useState<string | null>(null);
   const [animoDespues, setAnimoDespues] = useState<string | null>(null);
   const [calificacion, setCalificacion] = useState(0);
@@ -500,11 +496,6 @@ const MeditationSessionScreen: React.FC<Props> = ({ navigation, route }) => {
     setFase('mood-before');
   };
 
-  /** Inicia la fase de seleccion de sonido ambiental */
-  const iniciarSeleccionAmbiente = () => {
-    setFase('ambient-select');
-  };
-
   /** Inicia la sesion activa de meditacion */
   const iniciarSesion = () => {
     setIndicePasoActual(0);
@@ -532,8 +523,9 @@ const MeditationSessionScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   /** Completa la sesion y muestra el resumen */
-  const completarSesion = () => {
-    guardarEstadisticas();
+  const completarSesion = async () => {
+    await guardarEstadisticas();
+    await trackInteraction('meditation_completed');
     setFase('completed');
   };
 
@@ -572,28 +564,37 @@ const MeditationSessionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <View style={estilos.mainContainer}>
-      {/* Video decorativo de fondo */}
-      <Video
-        source={videoFondoSesion}
-        style={estilos.backgroundVideo}
-        resizeMode="cover"
-        repeat={true}
-        muted={true}
-        playInBackground={false}
-        playWhenInactive={false}
-        ignoreSilentSwitch="ignore"
-        mixWithOthers="mix"
-        rate={1.0}
-        paused={false}
-        maxBitRate={500000}
-        bufferConfig={{
-          minBufferMs: 5000,
-          maxBufferMs: 15000,
-          bufferForPlaybackMs: 1000,
-          bufferForPlaybackAfterRebufferMs: 2000,
-        }}
-        disableFocus={true}
-      />
+      {/* Fondo: vídeo o imagen según sesión (sesion-1 … sesion-6 en assets/videos) */}
+      {fondoSesion.tipo === 'imagen' ? (
+        <Image
+          source={fondoSesion.source}
+          style={estilos.backgroundVideo}
+          resizeMode="cover"
+        />
+      ) : (
+        <Video
+          source={fondoSesion.source}
+          style={estilos.backgroundVideo}
+          resizeMode="cover"
+          repeat
+          muted
+          playInBackground={false}
+          playWhenInactive={false}
+          ignoreSilentSwitch="ignore"
+          mixWithOthers="mix"
+          rate={1.0}
+          paused={false}
+          maxBitRate={500000}
+          bufferConfig={{
+            minBufferMs: 5000,
+            maxBufferMs: 15000,
+            bufferForPlaybackMs: 1000,
+            bufferForPlaybackAfterRebufferMs: 2000,
+          }}
+          disableFocus
+          {...(Platform.OS === 'android' ? { viewType: ViewType.TEXTURE } : {})}
+        />
+      )}
 
       {/* Overlay oscuro semi-transparente con gradiente */}
       <LinearGradient
@@ -603,9 +604,6 @@ const MeditationSessionScreen: React.FC<Props> = ({ navigation, route }) => {
 
       <ScrollView style={estilos.container} showsVerticalScrollIndicator={false}>
         <Animated.View style={[estilos.content, { opacity: animOpacidad }]}>
-          {/* Mini reproductor de música — independiente de la meditación */}
-          <MiniMusicPlayer />
-
           {/* Encabezado: boton volver, titulo, favorito */}
           <View style={estilos.header}>
             <TouchableOpacity style={estilos.backBtn} onPress={() => navigation.goBack()}>
@@ -724,15 +722,6 @@ const MeditationSessionScreen: React.FC<Props> = ({ navigation, route }) => {
                   ⏱️ {formatearTiempo(tiempoTotalTranscurrido)}
                 </Text>
               </View>
-
-              {/* Indicador de ambiente activo */}
-              {ambienteSeleccionado !== 'silence' && (
-                <View style={estilos.ambientIndicator}>
-                  <Text style={estilos.ambientIndicatorText}>
-                    {SONIDOS_AMBIENTALES.find(s => s.id === ambienteSeleccionado)?.icon} {SONIDOS_AMBIENTALES.find(s => s.id === ambienteSeleccionado)?.label}
-                  </Text>
-                </View>
-              )}
 
               {/* Círculo animado de respiración */}
               {pasoActual.breathPattern && (
@@ -919,6 +908,8 @@ const MeditationSessionScreen: React.FC<Props> = ({ navigation, route }) => {
           <View style={{ height: 40 }} />
         </Animated.View>
       </ScrollView>
+      {/* Mini reproductor fijo en pie de pantalla secundaria */}
+      <MiniMusicPlayer />
     </View>
   );
 };

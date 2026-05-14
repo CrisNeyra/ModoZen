@@ -6,6 +6,7 @@ import { AuthProvider } from './src/context/AuthContext';
 import { ProveedorIdioma } from './src/context/LanguageContext';
 import { MusicPlayerProvider } from './src/context/MusicPlayerContext';
 import { StatsProvider } from './src/context/StatsContext';
+import { RatingPromptProvider } from './src/context/RatingPromptContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import DevSplashScreen from './src/screens/DevSplashScreen';
 
@@ -28,7 +29,9 @@ const App = () => {
         <AuthProvider>
           <StatsProvider>
             <MusicPlayerProvider>
-              <AppNavigator />
+              <RatingPromptProvider>
+                <AppNavigator />
+              </RatingPromptProvider>
             </MusicPlayerProvider>
           </StatsProvider>
         </AuthProvider>

@@ -4,7 +4,7 @@
 // Categorías, reproductor con barra de progreso y controles.
 // ============================================================
 
-import React, { useState, useRef, useCallback, useEffect, memo } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -13,16 +13,20 @@ import {
   SectionList,
   StatusBar,
   Platform,
-  Animated,
   ActivityIndicator,
   Image,
+  useWindowDimensions,
 } from 'react-native';
-import Video, { OnProgressData, OnLoadData } from 'react-native-video';
+import Video, { OnLoadData, ViewType } from 'react-native-video';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useIsFocused } from '@react-navigation/native';
+import Orientation from 'react-native-orientation-locker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ListaPantallas } from '../navigation/AppNavigator';
 import { useIdioma } from '../context/LanguageContext';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
+import { useRatingPrompt } from '../context/RatingPromptContext';
 
 type Nav = NativeStackNavigationProp<ListaPantallas, 'VideosRelajantes'>;
 interface Props {
@@ -43,6 +47,8 @@ interface VideoItem {
   duracion: string;
   /** URI remota (CDN) o require() local para desarrollo */
   fuente: any;
+  /** Si true, `fuente` es imagen (jpg/png): miniatura y pantalla completa sin video. */
+  soloImagen?: boolean;
   /** URL de miniatura (CDN). Si no existe, se usa el primer frame del video. */
   thumbnailUrl?: string;
   gradiente: [string, string];
@@ -62,7 +68,6 @@ const CATEGORIAS: CategoriaVideos[] = [
   { id: 'naturaleza',  titulo_es: 'Naturaleza',        titulo_en: 'Nature',          icono: '🌿' },
   { id: 'sanadores',   titulo_es: 'Sonidos Sanadores', titulo_en: 'Healing Sounds',  icono: '🎵' },
   { id: 'meditacion',  titulo_es: 'Meditación',        titulo_en: 'Meditation',      icono: '🧘' },
-  { id: 'visual',      titulo_es: 'Arte Meditativo',   titulo_en: 'Meditative Art',  icono: '🎨' },
 ];
 
 /**
@@ -135,38 +140,7 @@ const CATALOGO_VIDEOS: VideoItem[] = [
     gradiente: ['#F59E0B', '#D97706'],
     categoria: 'meditacion',
   },
-  // ── Arte Meditativo ──
-  {
-    id: 'vis-1',
-    titulo_es: 'Pintura en lo profundo del bosque',
-    titulo_en: 'Painting Deep in the Forest',
-    descripcion_es: 'Técnica de pintura con depurador de hierro: observá cómo emerge un bosque sereno trazo a trazo. Arte visual hipnótico.',
-    descripcion_en: 'Iron scourer painting technique: watch a serene forest emerge stroke by stroke. Hypnotic visual art.',
-    icono: '🎨',
-    duracion: '15 min',
-    fuente: require('../assets/videos/Técnica de pintura con depurador de hierro-en lo profundo del bosque.mp4'),
-    gradiente: ['#059669', '#047857'],
-    categoria: 'visual',
-  },
 ];
-
-// ────────────────────────────────────────────────────────
-// Thumbnail: seek a un frame real para evitar cuadro negro
-// ────────────────────────────────────────────────────────
-const VideoThumbnail = memo(({ source, style }: { source: any; style: any }) => {
-  const ref = useRef<any>(null);
-  return (
-    <Video
-      ref={ref}
-      source={source}
-      style={style}
-      paused
-      muted
-      resizeMode="cover"
-      onLoad={() => ref.current?.seek(2)}
-    />
-  );
-});
 
 // ────────────────────────────────────────────────────────
 // Componente principal
@@ -175,18 +149,21 @@ const VideoThumbnail = memo(({ source, style }: { source: any; style: any }) => 
 const VideosRelajantesScreen: React.FC<Props> = ({ navigation }) => {
   const { idioma, t } = useIdioma();
   const { reproduciendo: musicaReproduciendo, setReproduciendo: setMusicaReproduciendo } = useMusicPlayer();
+  const { trackInteraction } = useRatingPrompt();
+  const isFocused = useIsFocused();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   const [videoActivo, setVideoActivo] = useState<VideoItem | null>(null);
-  const [pausado, setPausado] = useState(false);
   const [cargando, setCargando] = useState(true);
-  const [progreso, setProgreso] = useState(0);
-  const [duracion, setDuracion] = useState(0);
   const [categoriaActiva, setCategoriaActiva] = useState('all');
-  const [mostrarControles, setMostrarControles] = useState(true);
+  const [esPantallaCompleta, setEsPantallaCompleta] = useState(false);
+  const [buffering, setBuffering] = useState(false);
+  const [mensajeError, setMensajeError] = useState<string | null>(null);
+  const [androidViewType, setAndroidViewType] = useState<ViewType>(ViewType.TEXTURE);
+  const [reintentoRender, setReintentoRender] = useState(0);
 
-  const reproductorRef = useRef<any>(null);
-  const controlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const animControles = useRef(new Animated.Value(1)).current;
+  const reproductorRef = React.useRef<any>(null);
 
   // Guardamos el estado previo de la música para restaurar al salir
   const musicaPreviaRef = useRef(false);
@@ -224,155 +201,188 @@ const VideosRelajantesScreen: React.FC<Props> = ({ navigation }) => {
     musicaPreviaRef.current = musicaReproduciendo;
     if (musicaReproduciendo) setMusicaReproduciendo(false);
     setVideoActivo(item);
-    setPausado(false);
-    setCargando(true);
-    setProgreso(0);
-    setDuracion(0);
-  }, [musicaReproduciendo, setMusicaReproduciendo]);
+    setEsPantallaCompleta(false);
+    setCargando(!item.soloImagen);
+    setBuffering(false);
+    setMensajeError(null);
+    setAndroidViewType(ViewType.TEXTURE);
+    setReintentoRender(0);
+    void trackInteraction('video_viewed');
+  }, [musicaReproduciendo, setMusicaReproduciendo, trackInteraction]);
 
   const cerrarVideo = useCallback(() => {
+    Orientation.lockToPortrait();
     setVideoActivo(null);
-    setPausado(false);
+    setEsPantallaCompleta(false);
     setCargando(true);
-    setProgreso(0);
+    setBuffering(false);
+    setMensajeError(null);
     if (musicaPreviaRef.current) setMusicaReproduciendo(true);
   }, [setMusicaReproduciendo]);
 
-  // ── Auto-hide controles tras 4 s ──
-  const refrescarTimerControles = useCallback(() => {
-    if (controlTimer.current) clearTimeout(controlTimer.current);
-    setMostrarControles(true);
-    Animated.timing(animControles, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-    controlTimer.current = setTimeout(() => {
-      Animated.timing(animControles, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => {
-        setMostrarControles(false);
-      });
-    }, 4000);
-  }, [animControles]);
-
-  useEffect(() => {
-    if (videoActivo && !pausado) refrescarTimerControles();
-    return () => { if (controlTimer.current) clearTimeout(controlTimer.current); };
-  }, [videoActivo, pausado, refrescarTimerControles]);
-
-  // Keep controls visible while paused
-  useEffect(() => {
-    if (pausado) {
-      if (controlTimer.current) clearTimeout(controlTimer.current);
-      setMostrarControles(true);
-      Animated.timing(animControles, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-    }
-  }, [pausado, animControles]);
-
-  const onLoad = useCallback((data: OnLoadData) => {
-    setDuracion(data.duration);
+  const onLoad = useCallback((_data: OnLoadData) => {
     setCargando(false);
+    setBuffering(false);
+    setMensajeError(null);
   }, []);
 
-  const onProgress = useCallback((data: OnProgressData) => {
-    setProgreso(data.currentTime);
+  const onLoadStart = useCallback(() => {
+    setCargando(true);
+    setBuffering(false);
+    setMensajeError(null);
   }, []);
 
-  const seekRelativo = useCallback((delta: number) => {
-    const nuevo = Math.max(0, Math.min(duracion, progreso + delta));
-    reproductorRef.current?.seek?.(nuevo);
-    setProgreso(nuevo);
-    refrescarTimerControles();
-  }, [duracion, progreso, refrescarTimerControles]);
+  const onBuffer = useCallback((data: { isBuffering: boolean }) => {
+    setBuffering(!!data?.isBuffering);
+  }, []);
 
-  const formatearTiempo = (seg: number): string => {
-    const m = Math.floor(seg / 60);
-    const s = Math.floor(seg % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
+  const onError = useCallback(() => {
+    setCargando(false);
+    setBuffering(false);
+
+    // Fallback Android: alternar entre TEXTURE y SURFACE una vez.
+    if (
+      Platform.OS === 'android'
+      && reintentoRender === 0
+    ) {
+      setAndroidViewType(prev =>
+        prev === ViewType.TEXTURE ? ViewType.SURFACE : ViewType.TEXTURE,
+      );
+      setReintentoRender(1);
+      setCargando(true);
+      return;
+    }
+
+    setMensajeError(
+      idioma === 'es'
+        ? 'No se pudo reproducir este video. Intenta con otro o vuelve a abrirlo.'
+        : 'This video could not be played. Try another one or reopen it.',
+    );
+  }, [idioma, reintentoRender]);
+
+  const entrarPantallaCompleta = useCallback(() => {
+    setEsPantallaCompleta(true);
+  }, []);
+
+  const salirPantallaCompleta = useCallback(() => {
+    setEsPantallaCompleta(false);
+  }, []);
+
+  useEffect(() => {
+    if (esPantallaCompleta) {
+      Orientation.lockToLandscape();
+      return;
+    }
+    Orientation.lockToPortrait();
+  }, [esPantallaCompleta]);
+
+  useEffect(() => {
+    return () => {
+      Orientation.lockToPortrait();
+    };
+  }, []);
 
   // ────────────────────────────────────────────────
   // REPRODUCTOR PREMIUM FULLSCREEN
   // ────────────────────────────────────────────────
   if (videoActivo) {
-    const barraProgreso = duracion > 0 ? (progreso / duracion) * 100 : 0;
+    const esSoloImagen = !!videoActivo.soloImagen;
+    const enFullscreen = esPantallaCompleta;
+    const anchoMarcoRetrato = Math.min(screenWidth - 20, 560);
+    const altoMarcoRetrato = Math.min(screenHeight * 0.7, anchoMarcoRetrato * (9 / 16));
+    const padPortraitHeader = insets.top + (Platform.OS === 'ios' ? 8 : 6);
+
     return (
       <View style={s.playerContainer}>
-        <StatusBar hidden />
-        <Video
-          ref={reproductorRef}
-          source={videoActivo.fuente}
-          style={s.playerVideo}
-          resizeMode="contain"
-          paused={pausado}
-          repeat
-          volume={1.0}
-          ignoreSilentSwitch="ignore"
-          mixWithOthers="duck"
-          onLoad={onLoad}
-          onProgress={onProgress}
-          progressUpdateInterval={500}
-          bufferConfig={{
-            minBufferMs: 5000,
-            maxBufferMs: 50000,
-            bufferForPlaybackMs: 2500,
-            bufferForPlaybackAfterRebufferMs: 5000,
-          }}
-        />
-
-        {/* Tap zone → toggle controles */}
-        <TouchableOpacity
-          style={s.playerTapZone}
-          activeOpacity={1}
-          onPress={() => {
-            if (mostrarControles) {
-              Animated.timing(animControles, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => setMostrarControles(false));
-              if (controlTimer.current) clearTimeout(controlTimer.current);
-            } else {
-              refrescarTimerControles();
-            }
-          }}
-        />
-
-        {/* Loading spinner */}
-        {cargando && (
-          <View style={s.loadingOverlay}>
-            <ActivityIndicator size="large" color="#C084FC" />
-          </View>
-        )}
-
-        {/* Controles animados */}
-        <Animated.View style={[s.controlsLayer, { opacity: animControles }]} pointerEvents={mostrarControles ? 'auto' : 'none'}>
-          {/* Barra superior */}
-          <LinearGradient colors={['rgba(0,0,0,0.7)', 'transparent']} style={s.playerTopBar}>
-            <TouchableOpacity onPress={cerrarVideo} style={s.cerrarBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={s.cerrarTxt}>← {t.volver || 'Volver'}</Text>
-            </TouchableOpacity>
-            <Text style={s.playerTitle} numberOfLines={1}>{tituloVideo(videoActivo)}</Text>
-          </LinearGradient>
-
-          {/* Controles centrales */}
-          <View style={s.centerControls}>
-            <TouchableOpacity onPress={() => seekRelativo(-10)} style={s.seekBtn}>
-              <Text style={s.seekTxt}>⟲ 10s</Text>
-            </TouchableOpacity>
+        <StatusBar hidden={enFullscreen} translucent={enFullscreen} backgroundColor="#000" barStyle="light-content" />
+        <View style={[s.playerTopBarPortrait, { paddingTop: padPortraitHeader }]}>
+          <TouchableOpacity onPress={cerrarVideo} style={s.cerrarBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={s.cerrarTxt}>← {t.volver || 'Volver'}</Text>
+          </TouchableOpacity>
+          <Text style={s.playerTitle} numberOfLines={1}>{tituloVideo(videoActivo)}</Text>
+          {!esSoloImagen && (
             <TouchableOpacity
-              onPress={() => { setPausado(p => !p); refrescarTimerControles(); }}
-              style={s.playPauseBtn}
+              onPress={esPantallaCompleta ? salirPantallaCompleta : entrarPantallaCompleta}
+              style={s.fullscreenSideBtn}
+              activeOpacity={0.85}
             >
-              <Text style={s.playPauseTxt}>{pausado ? '▶' : '⏸'}</Text>
+              <Text style={s.fullscreenSideBtnText}>{esPantallaCompleta ? '🗗' : '⛶'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => seekRelativo(10)} style={s.seekBtn}>
-              <Text style={s.seekTxt}>10s ⟳</Text>
-            </TouchableOpacity>
-          </View>
+          )}
+        </View>
 
-          {/* Barra inferior: progreso */}
-          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)']} style={s.playerBottomBar}>
-            <View style={s.progressRow}>
-              <Text style={s.timeTxt}>{formatearTiempo(progreso)}</Text>
-              <View style={s.progressTrack}>
-                <View style={[s.progressFill, { width: `${barraProgreso}%` }]} />
+        <View style={[s.playerBody, !enFullscreen && s.playerBodyPortrait, enFullscreen && s.playerBodyLandscape]}>
+          <View
+            style={[
+              s.videoFrame,
+              enFullscreen
+                ? s.videoFrameLandscape
+                : [s.videoFramePortrait, { width: anchoMarcoRetrato, height: altoMarcoRetrato }],
+            ]}
+          >
+            {esSoloImagen ? (
+              <Image source={videoActivo.fuente} style={s.playerVideo} resizeMode="contain" />
+            ) : (
+              <Video
+                key={`${videoActivo.id}-${androidViewType}-${reintentoRender}`}
+                ref={reproductorRef}
+                source={videoActivo.fuente}
+                style={s.playerVideo}
+                resizeMode={enFullscreen ? 'cover' : 'contain'}
+                controls
+                paused={!isFocused}
+                ignoreSilentSwitch="ignore"
+                mixWithOthers="duck"
+                playInBackground={false}
+                playWhenInactive={false}
+                preventsDisplaySleepDuringVideoPlayback
+                shutterColor="transparent"
+                onLoadStart={onLoadStart}
+                onLoad={onLoad}
+                onReadyForDisplay={() => setCargando(false)}
+                onBuffer={onBuffer}
+                onError={onError}
+                onEnd={() => { reproductorRef.current?.seek?.(0); }}
+                progressUpdateInterval={500}
+                bufferConfig={{
+                  minBufferMs: 5000,
+                  maxBufferMs: 50000,
+                  bufferForPlaybackMs: 2500,
+                  bufferForPlaybackAfterRebufferMs: 5000,
+                }}
+                {...(Platform.OS === 'android' ? { viewType: androidViewType } : {})}
+              />
+            )}
+
+            {(cargando || buffering) && !mensajeError && (
+              <View style={s.loadingOverlay}>
+                <ActivityIndicator size="large" color="#C084FC" />
               </View>
-              <Text style={s.timeTxt}>{formatearTiempo(duracion)}</Text>
-            </View>
-          </LinearGradient>
-        </Animated.View>
+            )}
+
+            {mensajeError && (
+              <View style={s.errorOverlay}>
+                <Text style={s.errorText}>{mensajeError}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setMensajeError(null);
+                    setCargando(true);
+                    setBuffering(false);
+                    setReintentoRender(0);
+                    if (Platform.OS === 'android') {
+                      setAndroidViewType(ViewType.TEXTURE);
+                    }
+                    reproductorRef.current?.seek?.(0);
+                  }}
+                  style={s.retryBtn}
+                  activeOpacity={0.85}
+                >
+                  <Text style={s.retryBtnTxt}>{idioma === 'es' ? 'Reintentar' : 'Retry'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
       </View>
     );
   }
@@ -435,8 +445,12 @@ const VideosRelajantesScreen: React.FC<Props> = ({ navigation }) => {
               <View style={s.thumbWrap}>
                 {item.thumbnailUrl ? (
                   <Image source={{ uri: item.thumbnailUrl }} style={s.thumb} resizeMode="cover" />
+                ) : item.soloImagen ? (
+                  <Image source={item.fuente} style={s.thumb} resizeMode="cover" />
                 ) : (
-                  <VideoThumbnail source={item.fuente} style={s.thumb} />
+                  <LinearGradient colors={item.gradiente} style={s.thumbFallback}>
+                    <Text style={s.thumbFallbackIcon}>{item.icono || '🎬'}</Text>
+                  </LinearGradient>
                 )}
                 <LinearGradient
                   colors={['transparent', 'rgba(0,0,0,0.7)']}
@@ -552,6 +566,15 @@ const s = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  thumbFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbFallbackIcon: {
+    fontSize: 30,
+  },
   thumbGradient: {
     position: 'absolute',
     left: 0,
@@ -604,8 +627,51 @@ const s = StyleSheet.create({
 
   // ── Reproductor ──
   playerContainer: { flex: 1, backgroundColor: '#000' },
-  playerVideo: { ...StyleSheet.absoluteFillObject },
-  playerTapZone: { ...StyleSheet.absoluteFillObject, zIndex: 1 },
+  playerTopBarPortrait: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  playerBody: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playerBodyPortrait: {
+    paddingBottom: 0,
+  },
+  playerBodyLandscape: {
+    alignItems: 'stretch',
+    alignSelf: 'stretch',
+    width: '100%',
+    justifyContent: 'center',
+  },
+  videoFrame: {
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  videoFrameLandscape: {
+    flex: 1,
+    width: '100%',
+    alignSelf: 'stretch',
+    minHeight: 0,
+    minWidth: 0,
+    borderRadius: 0,
+  },
+  videoFramePortrait: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  playerVideo: { ...StyleSheet.absoluteFillObject, zIndex: 0 },
+  playerTapZone: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+    elevation: 1,
+    backgroundColor: 'transparent',
+  },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
@@ -614,25 +680,37 @@ const s = StyleSheet.create({
   },
   controlsLayer: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'space-between',
     zIndex: 3,
+    elevation: 3,
   },
   playerTopBar: {
-    paddingTop: Platform.OS === 'ios' ? 56 : 36,
     paddingHorizontal: 20,
     paddingBottom: 30,
     flexDirection: 'row',
     alignItems: 'center',
   },
+  playerTopBarFloating: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 6,
+  },
   cerrarBtn: { marginRight: 16 },
   cerrarTxt: { color: '#FFF', fontSize: 16, fontWeight: '600' },
   playerTitle: { color: '#FFF', fontSize: 18, fontWeight: '700', flex: 1 },
 
+  centerControlsOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 4,
+  },
   centerControls: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 32,
+    gap: 18,
   },
   seekBtn: {
     width: 56,
@@ -656,9 +734,135 @@ const s = StyleSheet.create({
   playPauseTxt: { color: '#FFF', fontSize: 30 },
 
   playerBottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 6,
     paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
     paddingTop: 30,
+  },
+  sideControlStrip: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+    elevation: 5,
+  },
+  errorOverlay: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    top: '42%',
+    zIndex: 7,
+    elevation: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  errorText: {
+    textAlign: 'center',
+    color: '#FDE68A',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  retryBtn: {
+    alignSelf: 'center',
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: 'rgba(192,132,252,0.24)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  retryBtnTxt: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  volumeCluster: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  volumeStepBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  volumeStepBtnText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  volumePercentTxt: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    fontWeight: '600',
+    minWidth: 34,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+  },
+  fullscreenSideBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    paddingHorizontal: 6,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  fullscreenSideBtnText: {
+    color: '#FFF',
+    fontSize: 22,
+    lineHeight: 26,
+  },
+  utilityBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  utilityBtnText: {
+    color: '#FFF',
+    fontSize: 16,
+  },
+  volumeSimpleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 14,
+  },
+  volumeTrackVertical: {
+    width: 12,
+    height: 110,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.24)',
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  volumeFillVertical: {
+    width: '100%',
+    borderRadius: 6,
+    backgroundColor: '#C084FC',
   },
   progressRow: {
     flexDirection: 'row',

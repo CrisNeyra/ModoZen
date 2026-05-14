@@ -6,6 +6,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../services/supabaseClient';
 
 // --- Tipos de datos ---
 
@@ -26,12 +27,18 @@ interface UsuarioAlmacenado {
 }
 
 /** Tipo del contexto de autenticación */
+interface ResultadoRegistro {
+  exito: boolean;
+  mensaje?: string;
+}
+
+/** Tipo del contexto de autenticación */
 interface TipoContextoAuth {
   usuario: Usuario | null;
   cargando: boolean;
   estaLogueado: boolean;
   iniciarSesion: (email: string, contrasena: string) => Promise<boolean>;
-  registrarse: (nombre: string, email: string, contrasena: string) => Promise<boolean>;
+  registrarse: (nombre: string, email: string, contrasena: string) => Promise<ResultadoRegistro>;
   cerrarSesion: () => Promise<void>;
 }
 
@@ -219,20 +226,60 @@ export const ProveedorAuth = ({ children }: { children: ReactNode }) => {
     nombre: string,
     email: string,
     contrasena: string
-  ): Promise<boolean> => {
+  ): Promise<ResultadoRegistro> => {
     try {
       // Validar contraseña accesible
       if (!esContrasenaValida(contrasena)) {
-        return false;
+        return { exito: false, mensaje: 'La contraseña no cumple los requisitos mínimos.' };
       }
 
       const emailNormalizado = email.toLowerCase().trim();
+
+      if (supabase) {
+        const { data, error } = await supabase.auth.signUp({
+          email: emailNormalizado,
+          password: contrasena,
+          options: {
+            data: { nombre: nombre.trim() },
+            emailRedirectTo: undefined,
+          },
+        });
+
+        if (error) {
+          return { exito: false, mensaje: error.message || 'No se pudo crear la cuenta en Supabase.' };
+        }
+
+        if (!data.user?.id) {
+          return { exito: false, mensaje: 'No recibimos un usuario válido desde Supabase.' };
+        }
+
+        const { error: errorPerfil } = await supabase
+          .from('perfiles')
+          .upsert(
+            {
+              id: data.user.id,
+              email: emailNormalizado,
+              nombre: nombre.trim(),
+            },
+            { onConflict: 'id' },
+          );
+
+        if (errorPerfil) {
+          return { exito: false, mensaje: errorPerfil.message || 'No se pudo guardar el perfil.' };
+        }
+
+        return {
+          exito: true,
+          mensaje: 'Cuenta creada. Revisá tu correo para verificar tu email antes de iniciar sesión.',
+        };
+      }
+
       const bdUsuarios = await obtenerBDUsuarios();
 
       // Verificar si el email ya está registrado
       const yaExiste = bdUsuarios.find(u => u.email === emailNormalizado);
       if (yaExiste) {
-        return false; // Email ya en uso
+        return { exito: false, mensaje: 'Ese correo ya está en uso.' };
       }
 
       // Crear nuevo usuario
@@ -255,10 +302,10 @@ export const ProveedorAuth = ({ children }: { children: ReactNode }) => {
       };
       await AsyncStorage.setItem(CLAVE_SESION, JSON.stringify(sesion));
       setUsuario(sesion);
-      return true;
+      return { exito: true };
     } catch (error) {
       console.error('Error al registrarse:', error);
-      return false;
+      return { exito: false, mensaje: 'Ocurrió un error al crear la cuenta.' };
     }
   };
 

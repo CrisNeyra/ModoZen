@@ -16,20 +16,22 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useIdioma } from '../context/LanguageContext';
+import { useMusicPlayer } from '../context/MusicPlayerContext';
 
 
 type Nav = NativeStackNavigationProp<any>;
 interface Props { navigation: Nav; }
 
 const PISTAS = [
+  { id: '2', nombre_es: 'Olas de mar Zen', nombre_en: 'Zen Ocean Waves', icono: '🌊', dur: '∞', grad: ['#06B6D4', '#0891B2'] },
   { id: '1', nombre_es: 'Lluvia suave', nombre_en: 'Soft Rain', icono: '🌧️', dur: '∞', grad: ['#3B82F6', '#1D4ED8'] },
-  { id: '2', nombre_es: 'Olas del mar', nombre_en: 'Ocean Waves', icono: '🌊', dur: '∞', grad: ['#06B6D4', '#0891B2'] },
   { id: '3', nombre_es: 'Bosque tranquilo', nombre_en: 'Peaceful Forest', icono: '🌿', dur: '∞', grad: ['#10B981', '#059669'] },
   { id: '4', nombre_es: 'Fogata crepitante', nombre_en: 'Crackling Fire', icono: '🔥', dur: '∞', grad: ['#F97316', '#EA580C'] },
 ];
 
 const SonidosScreen: React.FC<Props> = ({ navigation }) => {
   const { idioma, t } = useIdioma();
+  const { pistaIdx, reproduciendo, seleccionar, toggleReproduccion } = useMusicPlayer();
 
   // Animaciones de entrada
   const animHeader = useRef(new Animated.Value(0)).current;
@@ -41,6 +43,14 @@ const SonidosScreen: React.FC<Props> = ({ navigation }) => {
       animCards.map(a => Animated.spring(a, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }))
     ).start();
   }, [animHeader, animCards]);
+
+  const reproducirPista = (idx: number) => {
+    if (pistaIdx === idx) {
+      toggleReproduccion();
+      return;
+    }
+    seleccionar(idx, { autoplay: true, resetProgress: true });
+  };
 
   return (
     <View style={s.raiz}>
@@ -60,12 +70,15 @@ const SonidosScreen: React.FC<Props> = ({ navigation }) => {
         <ScrollView contentContainerStyle={s.lista} showsVerticalScrollIndicator={false}>
           <Text style={s.seccion}>{t.todasLasPistas}</Text>
 
-          {PISTAS.map((p, i) => (
+          {PISTAS.map((p, i) => {
+            const activa = pistaIdx === i;
+            const estaReproduciendoPista = activa && reproduciendo;
+            return (
             <Animated.View key={p.id} style={{
               opacity: animCards[i],
               transform: [{ translateX: animCards[i].interpolate({ inputRange: [0, 1], outputRange: [50, 0] }) }],
             }}>
-              <View style={s.pistaCard}>
+              <View style={[s.pistaCard, activa && s.pistaCardActiva]}>
                 <LinearGradient colors={p.grad} style={s.pistaIconoWrap} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                   <Text style={s.pistaIcono}>{p.icono}</Text>
                 </LinearGradient>
@@ -73,14 +86,15 @@ const SonidosScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={s.pistaNombre}>{idioma === 'es' ? p.nombre_es : p.nombre_en}</Text>
                   <Text style={s.pistaDur}>{p.dur}</Text>
                 </View>
-                <TouchableOpacity activeOpacity={0.7}>
+                <TouchableOpacity activeOpacity={0.7} onPress={() => reproducirPista(i)}>
                   <LinearGradient colors={['#9333EA', '#7C3AED']} style={s.playBadge}>
-                    <Text style={s.playIcon}>▶</Text>
+                    <Text style={s.playIcon}>{estaReproduciendoPista ? '⏸' : '▶'}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
             </Animated.View>
-          ))}
+          );
+          })}
 
           {/* Nota */}
           <View style={s.notaCard}>
@@ -123,6 +137,10 @@ const s = StyleSheet.create({
   pistaCard: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+  },
+  pistaCardActiva: {
+    borderColor: 'rgba(147,51,234,0.35)',
+    backgroundColor: 'rgba(147,51,234,0.1)',
   },
   pistaIconoWrap: {
     width: 50, height: 50, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
