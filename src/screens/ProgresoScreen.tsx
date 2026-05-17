@@ -17,6 +17,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useIdioma } from '../context/LanguageContext';
 import { useStats } from '../context/StatsContext';
+import { useTheme } from '../context/ThemeContext';
+import Dashboard from '../components/Dashboard';
 
 
 
@@ -39,6 +41,7 @@ const STAT_CONFIGS = [
 
 const ProgresoScreen: React.FC<Props> = ({ navigation }) => {
   const { t } = useIdioma();
+  const { theme } = useTheme();
   const { tiempoTotalMinutos, sesionesTotales, rachaActual, mejorRacha, sesionesPorDia } = useStats();
 
   const stats: Stats = {
@@ -52,21 +55,16 @@ const ProgresoScreen: React.FC<Props> = ({ navigation }) => {
   const animHeader = useRef(new Animated.Value(0)).current;
   const animCards = useRef(STAT_CONFIGS.map(() => new Animated.Value(0))).current;
   const animSemanal = useRef(new Animated.Value(0)).current;
-  const animBarras = useRef([0, 1, 2, 3, 4, 5, 6].map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
-    // Animaciones de entrada
     Animated.timing(animHeader, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     Animated.stagger(80,
       animCards.map(a => Animated.spring(a, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }))
     ).start();
     setTimeout(() => {
       Animated.timing(animSemanal, { toValue: 1, duration: 600, useNativeDriver: true }).start();
-      Animated.stagger(80,
-        animBarras.map(a => Animated.spring(a, { toValue: 1, tension: 40, friction: 6, useNativeDriver: false }))
-      ).start();
     }, 400);
-  }, [animHeader, animCards, animSemanal, animBarras]);
+  }, [animHeader, animCards, animSemanal]);
 
   const labelsTraducidos = {
     tiempoTotal: t.tiempoTotal,
@@ -82,29 +80,11 @@ const ProgresoScreen: React.FC<Props> = ({ navigation }) => {
     mejorRacha: `${stats.mejorRacha} ${t.dias}`,
   };
 
-  const diasSemana = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-
-  // Calcular minutos por día de la semana actual
-  const minutosSemanales = useMemo(() => {
-    const hoy = new Date();
-    const diaSemana = hoy.getDay(); // 0=Dom, 1=Lun, ...
-    const lunes = new Date(hoy);
-    lunes.setDate(hoy.getDate() - ((diaSemana + 6) % 7));
-    const resultado: number[] = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(lunes);
-      d.setDate(lunes.getDate() + i);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      resultado.push(sesionesPorDia[key] || 0);
-    }
-    return resultado;
-  }, [sesionesPorDia]);
-
-  const maxMinSemana = Math.max(...minutosSemanales, 1);
+  
 
   return (
     <View style={s.raiz}>
-      <LinearGradient colors={['#0F0F23', '#1A1A2E', '#16213E']} style={s.fondo}>
+      <LinearGradient colors={theme.fondoGradiente} style={s.fondo}>
         {/* Encabezado */}
         <Animated.View style={[s.header, {
           opacity: animHeader,
@@ -134,23 +114,9 @@ const ProgresoScreen: React.FC<Props> = ({ navigation }) => {
             ))}
           </View>
 
-          {/* Resumen semanal */}
+          {/* Dashboard semanal */}
           <Animated.View style={{ opacity: animSemanal }}>
-            <Text style={s.seccion}>{t.resumenSemanal}</Text>
-            <View style={s.semanalCard}>
-              {diasSemana.map((d, i) => (
-                <View key={i} style={s.diaCol}>
-                  <View style={s.diaBarContainer}>
-                    <Animated.View style={[s.diaBar, {
-                      height: animBarras[i].interpolate({ inputRange: [0, 1], outputRange: [4, Math.max(4, (minutosSemanales[i] / maxMinSemana) * 56)] }),
-                    }]}>
-                      <LinearGradient colors={['#9333EA', '#C084FC']} style={s.diaBarGrad} />
-                    </Animated.View>
-                  </View>
-                  <Text style={s.diaLetra}>{d}</Text>
-                </View>
-              ))}
-            </View>
+            <Dashboard sesionesPorDia={sesionesPorDia} />
           </Animated.View>
 
           {/* Empty state */}

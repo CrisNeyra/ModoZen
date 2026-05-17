@@ -38,3 +38,6 @@ export { default as VideosRelajantesScreen } from './VideosRelajantesScreen';
 
 /** Pantalla de reflexión con Guía Zen */
 export { default as ReflexionScreen } from './ReflexionScreen';
+
+/** Pantalla de temporizador circular de relajación */
+export { default as TemporizadorScreen } from './TemporizadorScreen';

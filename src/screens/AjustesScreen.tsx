@@ -18,6 +18,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { useIdioma } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 
 type Nav = NativeStackNavigationProp<any>;
 interface Props { navigation: Nav; }
@@ -25,6 +26,7 @@ interface Props { navigation: Nav; }
 const AjustesScreen: React.FC<Props> = ({ navigation }) => {
   const { cerrarSesion } = useAuth();
   const { idioma, t, cambiarIdioma } = useIdioma();
+  const { themeMode, toggleTheme } = useTheme();
   const [notis, setNotis] = React.useState(false);
 
   // Animaciones
@@ -117,9 +119,16 @@ const AjustesScreen: React.FC<Props> = ({ navigation }) => {
                 </LinearGradient>
                 <Text style={s.seccionTitulo}>{t.tema}</Text>
               </View>
-              <View style={s.temaRow}>
-                <View style={s.temaIndicator} />
-                <Text style={s.info}>{t.oscuro}</Text>
+              <View style={s.filaSwitch}>
+                <Text style={s.filaLabel}>
+                  {themeMode === 'dark' ? `🌙 ${t.oscuro}` : `☀️ ${t.claro}`}
+                </Text>
+                <Switch
+                  value={themeMode === 'light'}
+                  onValueChange={toggleTheme}
+                  trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(147,51,234,0.5)' }}
+                  thumbColor={themeMode === 'light' ? '#9333EA' : '#555'}
+                />
               </View>
             </View>
           </Animated.View>

@@ -26,9 +26,11 @@ import CaminatasScreen from '../screens/CaminatasScreen';
 import BiofeedbackScreen from '../screens/BiofeedbackScreen';
 import VideosRelajantesScreen from '../screens/VideosRelajantesScreen';
 import ReflexionScreen from '../screens/ReflexionScreen';
+import TemporizadorScreen from '../screens/TemporizadorScreen';
 import MiniMusicPlayer from '../components/MiniMusicPlayer';
 // Colores del tema
 import { colors } from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 
 /** Tipos de las rutas del stack de navegación */
 export type ListaPantallas = {
@@ -44,6 +46,7 @@ export type ListaPantallas = {
   Reflexion: undefined;
   Caminatas: undefined;
   Biofeedback: undefined;
+  Temporizador: undefined;
 };
 
 // Creamos el stack de navegación con los tipos definidos
@@ -66,6 +69,7 @@ const getActiveRouteName = (state?: NavigationState): string => {
 const AppNavigator: React.FC = () => {
   // Extraemos el estado de autenticación del contexto
   const { cargando, estaLogueado } = useAuth();
+  const { theme } = useTheme();
   const [rutaActual, setRutaActual] = useState('');
 
   const onStateChange = useCallback((state?: NavigationState) => {
@@ -88,9 +92,9 @@ const AppNavigator: React.FC = () => {
       <View style={{ flex: 1 }}>
         <Stack.Navigator
           screenOptions={{
-            headerShown: false, // Sin barra de navegación nativa
-            contentStyle: { backgroundColor: '#0F0F23' },
-            animation: 'fade_from_bottom', // Transición suave entre pantallas
+            headerShown: false,
+            contentStyle: { backgroundColor: theme.fondo },
+            animation: 'fade_from_bottom',
             animationDuration: 350,
           }}
         >
@@ -113,6 +117,7 @@ const AppNavigator: React.FC = () => {
               <Stack.Screen name="Reflexion" component={ReflexionScreen} options={{ animation: 'slide_from_right' }} />
               <Stack.Screen name="Caminatas" component={CaminatasScreen} options={{ animation: 'slide_from_right' }} />
               <Stack.Screen name="Biofeedback" component={BiofeedbackScreen} options={{ animation: 'slide_from_right' }} />
+              <Stack.Screen name="Temporizador" component={TemporizadorScreen} options={{ animation: 'slide_from_right' }} />
             </>
           ) : (
             /* --- Pantallas de autenticación --- */

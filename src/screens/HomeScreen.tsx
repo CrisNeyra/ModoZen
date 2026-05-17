@@ -40,6 +40,7 @@ type ListaPantallas = {
   Reflexion: undefined;
   Caminatas: undefined;
   Biofeedback: undefined;
+  Temporizador: undefined;
 };
 type Nav = NativeStackNavigationProp<ListaPantallas, 'Home'>;
 interface Props { navigation: Nav; }
@@ -469,6 +470,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               { onPress: () => navigation.navigate('VideosRelajantes'), icono: '🎬', titulo: t.videosRelajantes || 'Videos relajantes', desc: t.videosRelajantesSub || 'Videos de meditación y relajación', grad: ['#6366F1', '#4F46E5'] as [string, string] },
               { onPress: () => navigation.navigate('Caminatas'), icono: '🚶', titulo: t.caminatas || 'Caminatas', desc: t.caminatasSub || 'Meditación en movimiento', grad: ['#10B981', '#059669'] as [string, string] },
               { onPress: () => navigation.navigate('Biofeedback'), icono: '❤️', titulo: t.biofeedback || 'Biofeedback', desc: t.biofeedbackSub || 'Conectá tu dispositivo', grad: ['#EF4444', '#DC2626'] as [string, string] },
+              { onPress: () => navigation.navigate('Temporizador'), icono: '⏱️', titulo: t.temporizador || 'Temporizador', desc: t.temporizadorSub || 'Contá minutos de relajación', grad: ['#9333EA', '#7C22CE'] as [string, string] },
             ].map((item, i) => (
               <TouchableOpacity key={i} activeOpacity={0.85} onPress={item.onPress} style={{ marginBottom: 14 }}>
                 <LinearGradient
