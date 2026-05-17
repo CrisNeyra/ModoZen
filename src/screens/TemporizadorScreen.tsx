@@ -12,6 +12,7 @@ import LinearGradient from 'react-native-linear-gradient'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { ListaPantallas } from '../navigation/AppNavigator'
 import { useTheme } from '../context/ThemeContext'
+import { useStats } from '../context/StatsContext'
 import CircularTimer from '../components/CircularTimer'
 
 const { width: W } = Dimensions.get('window')
@@ -27,6 +28,7 @@ const DURACIONES = [
 
 const TemporizadorScreen: React.FC<Props> = ({ navigation }) => {
   const { theme, themeMode } = useTheme()
+  const { registrarSesion } = useStats()
   const [duracion, setDuracion] = useState<number>(5)
   const [iniciado, setIniciado] = useState(false)
 
@@ -34,6 +36,14 @@ const TemporizadorScreen: React.FC<Props> = ({ navigation }) => {
 
   const esOscuro = themeMode === 'dark'
   const s = crearEstilos(theme, esOscuro)
+
+  const handleCompletar = async () => {
+    await registrarSesion({
+      sessionId: `timer-${duracion}-${Date.now()}`,
+      durationSeconds: duracion * 60,
+      note: 'Temporizador libre',
+    })
+  }
 
   return (
     <View style={s.raiz}>
@@ -94,7 +104,7 @@ const TemporizadorScreen: React.FC<Props> = ({ navigation }) => {
               <CircularTimer
                 key={timerKey}
                 durationMinutes={duracion}
-                onComplete={() => {}}
+                onComplete={handleCompletar}
                 autoStart
               />
               <TouchableOpacity

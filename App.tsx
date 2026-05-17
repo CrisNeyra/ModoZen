@@ -8,6 +8,8 @@ import { MusicPlayerProvider } from './src/context/MusicPlayerContext';
 import { StatsProvider } from './src/context/StatsContext';
 import { RatingPromptProvider } from './src/context/RatingPromptContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { FavoritesProvider } from './src/context/FavoritesContext';
+import { AchievementsProvider } from './src/context/AchievementsContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import DevSplashScreen from './src/screens/DevSplashScreen';
 
@@ -43,11 +45,15 @@ const App = () => {
         <AuthProvider>
           <ThemeProvider>
             <StatsProvider>
-              <MusicPlayerProvider>
-                <RatingPromptProvider>
-                  <AppContent />
-                </RatingPromptProvider>
-              </MusicPlayerProvider>
+              <FavoritesProvider>
+                <AchievementsProvider>
+                  <MusicPlayerProvider>
+                    <RatingPromptProvider>
+                      <AppContent />
+                    </RatingPromptProvider>
+                  </MusicPlayerProvider>
+                </AchievementsProvider>
+              </FavoritesProvider>
             </StatsProvider>
           </ThemeProvider>
         </AuthProvider>

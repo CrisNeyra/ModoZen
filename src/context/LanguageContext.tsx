@@ -183,6 +183,10 @@ const traducciones = {
     relajacionInicial: 'Seguí practicando para ver mejoras en tu relajación.',
     compatibilidad: 'Compatibilidad',
     infoWearables: 'Compatible con Apple Watch, Fitbit, Garmin y sensores BLE.',
+    respiracionTitulo: 'Ejercicios de Respiración',
+    respiracionSub: 'Elige un patrón de respiración',
+    cancelar: 'Cancelar',
+    cerrar: 'Cerrar',
   },
   en: {
     // --- Login ---
@@ -350,6 +354,10 @@ const traducciones = {
     relajacionInicial: 'Keep practicing to see improvement in your relaxation.',
     compatibilidad: 'Compatibility',
     infoWearables: 'Compatible with Apple Watch, Fitbit, Garmin and BLE sensors.',
+    respiracionTitulo: 'Breathing Exercises',
+    respiracionSub: 'Choose a breathing pattern',
+    cancelar: 'Cancel',
+    cerrar: 'Close',
   },
 };
 

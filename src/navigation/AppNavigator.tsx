@@ -5,11 +5,12 @@
 // Si no → pantallas de login/registro.
 // ============================================================
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import type { NavigationState } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Contexto de autenticación (provee estado del usuario)
 import { useAuth } from '../context/AuthContext';
@@ -27,6 +28,8 @@ import BiofeedbackScreen from '../screens/BiofeedbackScreen';
 import VideosRelajantesScreen from '../screens/VideosRelajantesScreen';
 import ReflexionScreen from '../screens/ReflexionScreen';
 import TemporizadorScreen from '../screens/TemporizadorScreen';
+import OnboardingScreen from '../screens/OnboardingScreen';
+import RespiracionScreen from '../screens/RespiracionScreen';
 import MiniMusicPlayer from '../components/MiniMusicPlayer';
 // Colores del tema
 import { colors } from '../theme/colors';
@@ -34,6 +37,7 @@ import { useTheme } from '../context/ThemeContext';
 
 /** Tipos de las rutas del stack de navegación */
 export type ListaPantallas = {
+  Onboarding: undefined;
   Login: undefined;
   Register: undefined;
   Home: { fromMeditation?: boolean } | undefined;
@@ -47,13 +51,14 @@ export type ListaPantallas = {
   Caminatas: undefined;
   Biofeedback: undefined;
   Temporizador: undefined;
+  Respiracion: undefined;
 };
 
 // Creamos el stack de navegación con los tipos definidos
 const Stack = createNativeStackNavigator<ListaPantallas>();
 
 /** Pantallas donde el mini-player NO se muestra */
-const PANTALLAS_SIN_PLAYER = ['Home', 'VideosRelajantes', 'MeditationSession', 'Login', 'Register', 'Sonidos', 'Reflexion'];
+const PANTALLAS_SIN_PLAYER = ['Home', 'VideosRelajantes', 'MeditationSession', 'Login', 'Register', 'Sonidos', 'Reflexion', 'Onboarding', 'Respiracion'];
 
 /** Extrae el nombre de la ruta activa de un NavigationState */
 const getActiveRouteName = (state?: NavigationState): string => {
@@ -67,10 +72,22 @@ const getActiveRouteName = (state?: NavigationState): string => {
  * luego renderiza las pantallas según el estado de autenticación.
  */
 const AppNavigator: React.FC = () => {
-  // Extraemos el estado de autenticación del contexto
   const { cargando, estaLogueado } = useAuth();
   const { theme } = useTheme();
   const [rutaActual, setRutaActual] = useState('');
+  const [onboardingCompleto, setOnboardingCompleto] = useState(false);
+  const [verificandoOnboarding, setVerificandoOnboarding] = useState(true);
+
+  useEffect(() => {
+    const verificar = async () => {
+      try {
+        const completo = await AsyncStorage.getItem('@ModoZen:onboardingComplete');
+        setOnboardingCompleto(completo === 'true');
+      } catch {}
+      setVerificandoOnboarding(false);
+    };
+    verificar();
+  }, []);
 
   const onStateChange = useCallback((state?: NavigationState) => {
     setRutaActual(getActiveRouteName(state));
@@ -78,8 +95,7 @@ const AppNavigator: React.FC = () => {
 
   const mostrarPlayer = estaLogueado && !PANTALLAS_SIN_PLAYER.includes(rutaActual);
 
-  // Pantalla de carga mientras se verifica la sesión
-  if (cargando) {
+  if (cargando || verificandoOnboarding) {
     return (
       <View style={estilos.contenedorCarga}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -87,10 +103,13 @@ const AppNavigator: React.FC = () => {
     );
   }
 
+  const pantallaInicial = estaLogueado && !onboardingCompleto ? 'Onboarding' : 'Home';
+
   return (
     <NavigationContainer onStateChange={onStateChange}>
       <View style={{ flex: 1 }}>
         <Stack.Navigator
+          initialRouteName={pantallaInicial}
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: theme.fondo },
@@ -101,12 +120,13 @@ const AppNavigator: React.FC = () => {
           {estaLogueado ? (
             /* --- Pantallas para usuarios autenticados --- */
             <>
+              <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ animation: 'fade' }} />
               <Stack.Screen name="Home" component={HomeScreen} />
               <Stack.Screen
                 name="MeditationSession"
                 component={MeditationSessionScreen}
                 options={{
-                  animation: 'slide_from_right', // Desliza desde la derecha
+                  animation: 'slide_from_right',
                 }}
               />
               <Stack.Screen name="Sonidos" component={SonidosScreen} options={{ animation: 'slide_from_right' }} />
@@ -118,6 +138,7 @@ const AppNavigator: React.FC = () => {
               <Stack.Screen name="Caminatas" component={CaminatasScreen} options={{ animation: 'slide_from_right' }} />
               <Stack.Screen name="Biofeedback" component={BiofeedbackScreen} options={{ animation: 'slide_from_right' }} />
               <Stack.Screen name="Temporizador" component={TemporizadorScreen} options={{ animation: 'slide_from_right' }} />
+              <Stack.Screen name="Respiracion" component={RespiracionScreen} options={{ animation: 'slide_from_right' }} />
             </>
           ) : (
             /* --- Pantallas de autenticación --- */

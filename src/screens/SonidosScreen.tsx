@@ -15,11 +15,13 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { ListaPantallas } from '../navigation/AppNavigator'
 import { useIdioma } from '../context/LanguageContext';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
+import ScreenHeader from '../components/ScreenHeader';
 
 
-type Nav = NativeStackNavigationProp<any>;
+type Nav = NativeStackNavigationProp<ListaPantallas, 'Sonidos'>;
 interface Props { navigation: Nav; }
 
 const PISTAS = [
@@ -33,16 +35,13 @@ const SonidosScreen: React.FC<Props> = ({ navigation }) => {
   const { idioma, t } = useIdioma();
   const { pistaIdx, reproduciendo, seleccionar, toggleReproduccion } = useMusicPlayer();
 
-  // Animaciones de entrada
-  const animHeader = useRef(new Animated.Value(0)).current;
   const animCards = useRef(PISTAS.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
-    Animated.timing(animHeader, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     Animated.stagger(100,
       animCards.map(a => Animated.spring(a, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }))
     ).start();
-  }, [animHeader, animCards]);
+  }, [animCards]);
 
   const reproducirPista = (idx: number) => {
     if (pistaIdx === idx) {
@@ -54,20 +53,14 @@ const SonidosScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={s.raiz}>
-      <LinearGradient colors={['#0F0F23', '#1A1A2E', '#16213E']} style={s.fondo}>
-        {/* Encabezado */}
-        <Animated.View style={[s.header, {
-          opacity: animHeader,
-          transform: [{ translateY: animHeader.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }],
-        }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} activeOpacity={0.7}>
-            <Text style={s.backTxt}>← {t.volver}</Text>
-          </TouchableOpacity>
-          <Text style={s.titulo}>{t.tituloSonidos}</Text>
-          <Text style={s.sub}>{t.subtituloSonidos}</Text>
-        </Animated.View>
+      <ScreenHeader
+        titulo={t.tituloSonidos}
+        subtitulo={t.subtituloSonidos}
+        onBack={() => navigation.goBack()}
+        textoVolver={`← ${t.volver}`}
+      />
 
-        <ScrollView contentContainerStyle={s.lista} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={s.lista} showsVerticalScrollIndicator={false}>
           <Text style={s.seccion}>{t.todasLasPistas}</Text>
 
           {PISTAS.map((p, i) => {
@@ -102,32 +95,12 @@ const SonidosScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={s.notaTxt}>{t.agregarPistas}</Text>
           </View>
         </ScrollView>
-      </LinearGradient>
     </View>
   );
 };
 
 const s = StyleSheet.create({
   raiz: { flex: 1 },
-  fondo: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 16 },
-  backBtn: {
-    marginBottom: 16, backgroundColor: 'rgba(147,51,234,0.15)', alignSelf: 'flex-start',
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-    borderWidth: 1, borderColor: 'rgba(147,51,234,0.3)',
-  },
-  backTxt: {
-    color: '#C084FC', fontSize: 15, fontWeight: '600',
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium',
-  },
-  titulo: {
-    fontSize: 28, fontWeight: '600', color: '#FFF', letterSpacing: 0.5,
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium',
-  },
-  sub: {
-    fontSize: 14, color: 'rgba(255,255,255,0.45)', marginTop: 4,
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Light',
-  },
   lista: { paddingHorizontal: 20, paddingBottom: 40 },
   seccion: {
     fontSize: 12, fontWeight: '500', color: 'rgba(255,255,255,0.35)', marginTop: 16, marginBottom: 14,

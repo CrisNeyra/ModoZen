@@ -3,7 +3,7 @@
 // Mantiene la reproducción de música entre pantallas.
 // ============================================================
 
-import React, { createContext, useContext, useState, useRef, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback, ReactNode, useEffect } from 'react';
 import { Platform } from 'react-native';
 import Video, { OnLoadData, SelectedVideoTrackType, ViewType } from 'react-native-video';
 import { useIdioma } from './LanguageContext';
@@ -34,6 +34,8 @@ interface MusicPlayerState {
   repetir: boolean;
   volumen: number;
   pista: Pista;
+  sleepTimer: number;
+  sleepTimerRestante: number;
 }
 
 interface MusicPlayerActions {
@@ -48,6 +50,8 @@ interface MusicPlayerActions {
   seleccionar: (idx: number, options?: { autoplay?: boolean; resetProgress?: boolean }) => void;
   seekTo: (time: number) => void;
   nombrePista: (p: Pista) => string;
+  setSleepTimer: (minutos: number) => void;
+  cancelarSleepTimer: () => void;
 }
 
 type MusicPlayerContextType = MusicPlayerState & MusicPlayerActions;
@@ -64,7 +68,38 @@ export const MusicPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [aleatorio, setAleatorio] = useState(false);
   const [repetir, setRepetir] = useState(false);
   const [volumen, setVolumen] = useState(1.0);
+  const [sleepTimer, setSleepTimer] = useState(0);
+  const [sleepTimerRestante, setSleepTimerRestante] = useState(0);
   const reproductorRef = useRef<any>(null);
+  const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
+    };
+  }, []);
+
+  const iniciarSleepTimer = useCallback((minutos: number) => {
+    setSleepTimer(minutos * 60);
+    setSleepTimerRestante(minutos * 60);
+    if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
+    sleepTimerRef.current = setInterval(() => {
+      setSleepTimerRestante(prev => {
+        if (prev <= 1) {
+          if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
+          setReproduciendo(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  const cancelarSleepTimer = useCallback(() => {
+    if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
+    setSleepTimer(0);
+    setSleepTimerRestante(0);
+  }, []);
 
   const pista = PISTAS[pistaIdx];
   const nombrePista = useCallback((p: Pista) => idioma === 'es' ? p.nombre_es : p.nombre_en, [idioma]);
@@ -113,8 +148,11 @@ export const MusicPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
   return (
     <MusicPlayerContext.Provider value={{
       pistaIdx, reproduciendo, duracion, progreso, aleatorio, repetir, volumen, pista,
+      sleepTimer, sleepTimerRestante,
       setPistaIdx, setReproduciendo, toggleReproduccion, setVolumen, setAleatorio, setRepetir,
       siguiente, anterior, seleccionar, seekTo, nombrePista,
+      setSleepTimer: iniciarSleepTimer,
+      cancelarSleepTimer,
     }}>
       {/* Solo con sesión iniciada: evita 2× ExoPlayer en Login/Home (rompe fondos en Android). */}
       {estaLogueado ? (

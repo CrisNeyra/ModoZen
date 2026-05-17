@@ -3,7 +3,7 @@
 // Muestra ritmo cardíaco, curva de relajación y conexión BLE.
 // ============================================================
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,10 +15,12 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { ListaPantallas } from '../navigation/AppNavigator'
 import { useIdioma } from '../context/LanguageContext';
+import ScreenHeader from '../components/ScreenHeader';
 
 
-type Nav = NativeStackNavigationProp<any>;
+type Nav = NativeStackNavigationProp<ListaPantallas, 'Biofeedback'>;
 interface Props { navigation: Nav; }
 
 /**
@@ -41,31 +43,38 @@ const BiofeedbackScreen: React.FC<Props> = ({ navigation }) => {
   const [bpmActual, setBpmActual] = useState<number | null>(null);
   const [curvaRelajacion, setCurvaRelajacion] = useState<number[]>([]);
 
-  const animHeader = useRef(new Animated.Value(0)).current;
   const animCards = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
+  const intervaloRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    Animated.timing(animHeader, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     Animated.stagger(120,
       animCards.map(a => Animated.spring(a, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }))
     ).start();
-  }, [animHeader, animCards]);
+  }, [animCards]);
 
-  const simularConexion = () => {
+  useEffect(() => {
+    return () => {
+      if (intervaloRef.current) {
+        clearInterval(intervaloRef.current);
+      }
+    };
+  }, []);
+
+  const simularConexion = useCallback(() => {
     setConectado(true);
     setBpmActual(78);
-    // Simular descenso de BPM para demo
     let idx = 0;
-    const intervalo = setInterval(() => {
+    if (intervaloRef.current) clearInterval(intervaloRef.current);
+    intervaloRef.current = setInterval(() => {
       if (idx < EJEMPLO_CURVA.length) {
         setBpmActual(EJEMPLO_CURVA[idx]);
         setCurvaRelajacion(prev => [...prev, EJEMPLO_CURVA[idx]]);
         idx++;
       } else {
-        clearInterval(intervalo);
+        if (intervaloRef.current) clearInterval(intervaloRef.current);
       }
     }, 2000);
-  };
+  }, []);
 
   const maxBPM = Math.max(...(curvaRelajacion.length > 0 ? curvaRelajacion : [80]), 1);
   const minBPM = Math.min(...(curvaRelajacion.length > 0 ? curvaRelajacion : [60]));
@@ -73,19 +82,14 @@ const BiofeedbackScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={s.raiz}>
-      <LinearGradient colors={['#0F0F23', '#1A1A2E', '#16213E']} style={s.fondo}>
-        <Animated.View style={[s.header, {
-          opacity: animHeader,
-          transform: [{ translateY: animHeader.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }],
-        }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} activeOpacity={0.7}>
-            <Text style={s.backTxt}>← {t.volver}</Text>
-          </TouchableOpacity>
-          <Text style={s.titulo}>{t.biofeedbackTitulo || 'Biofeedback'}</Text>
-          <Text style={s.sub}>{t.biofeedbackSub || 'Sincronización con wearables'}</Text>
-        </Animated.View>
+      <ScreenHeader
+        titulo={t.biofeedbackTitulo || 'Biofeedback'}
+        subtitulo={t.biofeedbackSub || 'Sincronización con wearables'}
+        onBack={() => navigation.goBack()}
+        textoVolver={`← ${t.volver}`}
+      />
 
-        <ScrollView contentContainerStyle={s.contenido} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={s.contenido} showsVerticalScrollIndicator={false}>
           {/* Estado de conexión */}
           <Animated.View style={{ opacity: animCards[0], transform: [{ translateY: animCards[0].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
             <View style={s.cardConexion}>
@@ -174,23 +178,12 @@ const BiofeedbackScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           </View>
         </ScrollView>
-      </LinearGradient>
     </View>
   );
 };
 
 const s = StyleSheet.create({
   raiz: { flex: 1 },
-  fondo: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 16 },
-  backBtn: {
-    marginBottom: 16, backgroundColor: 'rgba(147,51,234,0.15)', alignSelf: 'flex-start',
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-    borderWidth: 1, borderColor: 'rgba(147,51,234,0.3)',
-  },
-  backTxt: { color: '#C084FC', fontSize: 15, fontWeight: '600', fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium' },
-  titulo: { fontSize: 28, fontWeight: '600', color: '#FFF', letterSpacing: 0.5, fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium' },
-  sub: { fontSize: 14, color: 'rgba(255,255,255,0.45)', marginTop: 4, fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Light' },
   contenido: { paddingHorizontal: 20, paddingBottom: 40 },
   cardConexion: {
     backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 20, marginTop: 16,

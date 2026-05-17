@@ -13,15 +13,17 @@ import {
   ScrollView,
   Platform,
   Animated,
-  Alert,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { ListaPantallas } from '../navigation/AppNavigator'
 import { useIdioma } from '../context/LanguageContext';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
+import ScreenHeader from '../components/ScreenHeader';
+import CaminataModal from '../components/CaminataModal';
 
 
-type Nav = NativeStackNavigationProp<any>;
+type Nav = NativeStackNavigationProp<ListaPantallas, 'Caminatas'>;
 interface Props { navigation: Nav; }
 
 interface Caminata {
@@ -113,6 +115,12 @@ const CaminatasScreen: React.FC<Props> = ({ navigation }) => {
   const { idioma, t } = useIdioma();
   const { seleccionar, reproduciendo, pistaIdx, toggleReproduccion } = useMusicPlayer();
   const [caminataActiva, setCaminataActiva] = useState<string | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [caminataModal, setCaminataModal] = useState<{
+    titulo: string;
+    instrucciones: string;
+    gradiente: [string, string];
+  } | null>(null);
 
   const iniciarCaminata = (cam: Caminata) => {
     const pistaActiva = pistaIdx === cam.pistaAudioIdx;
@@ -122,37 +130,32 @@ const CaminatasScreen: React.FC<Props> = ({ navigation }) => {
       seleccionar(cam.pistaAudioIdx, { autoplay: true, resetProgress: true });
     }
     setCaminataActiva(cam.id);
-    const instrucciones = idioma === 'es' ? cam.instrucciones_es : cam.instrucciones_en;
-    const tituloAlert = idioma === 'es' ? `🎧 ${cam.titulo_es}` : `🎧 ${cam.titulo_en}`;
-    const boton = idioma === 'es' ? '¡Vamos!' : "Let's go!";
-    Alert.alert(tituloAlert, instrucciones, [{ text: boton }]);
+    setCaminataModal({
+      titulo: idioma === 'es' ? `🎧 ${cam.titulo_es}` : `🎧 ${cam.titulo_en}`,
+      instrucciones: idioma === 'es' ? cam.instrucciones_es : cam.instrucciones_en,
+      gradiente: cam.grad as [string, string],
+    });
+    setModalVisible(true);
   };
 
-  const animHeader = useRef(new Animated.Value(0)).current;
   const animCards = useRef(CAMINATAS.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
-    Animated.timing(animHeader, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     Animated.stagger(120,
       animCards.map(a => Animated.spring(a, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }))
     ).start();
-  }, [animHeader, animCards]);
+  }, [animCards]);
 
   return (
     <View style={s.raiz}>
-      <LinearGradient colors={['#0F0F23', '#1A1A2E', '#16213E']} style={s.fondo}>
-        <Animated.View style={[s.header, {
-          opacity: animHeader,
-          transform: [{ translateY: animHeader.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }],
-        }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} activeOpacity={0.7}>
-            <Text style={s.backTxt}>← {t.volver}</Text>
-          </TouchableOpacity>
-          <Text style={s.titulo}>{t.caminatasTitulo || 'Meditation Walks'}</Text>
-          <Text style={s.sub}>{t.caminatasSub || 'Meditación en movimiento'}</Text>
-        </Animated.View>
+      <ScreenHeader
+        titulo={t.caminatasTitulo || 'Meditation Walks'}
+        subtitulo={t.caminatasSub || 'Meditación en movimiento'}
+        onBack={() => navigation.goBack()}
+        textoVolver={`← ${t.volver}`}
+      />
 
-        <ScrollView contentContainerStyle={s.lista} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={s.lista} showsVerticalScrollIndicator={false}>
           {CAMINATAS.map((c, i) => {
             const titulo = idioma === 'es' ? c.titulo_es : c.titulo_en;
             const desc = idioma === 'es' ? c.desc_es : c.desc_en;
@@ -199,23 +202,23 @@ const CaminatasScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={s.notaTxt}>{t.masCaminatas || 'Próximamente: más rutas y meditaciones en movimiento'}</Text>
           </View>
         </ScrollView>
-      </LinearGradient>
+
+        {caminataModal && (
+          <CaminataModal
+            visible={modalVisible}
+            titulo={caminataModal.titulo}
+            instrucciones={caminataModal.instrucciones}
+            gradiente={caminataModal.gradiente}
+            textoBoton={idioma === 'es' ? '¡Vamos!' : "Let's go!"}
+            onClose={() => setModalVisible(false)}
+          />
+        )}
     </View>
   );
 };
 
 const s = StyleSheet.create({
   raiz: { flex: 1 },
-  fondo: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 16 },
-  backBtn: {
-    marginBottom: 16, backgroundColor: 'rgba(147,51,234,0.15)', alignSelf: 'flex-start',
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-    borderWidth: 1, borderColor: 'rgba(147,51,234,0.3)',
-  },
-  backTxt: { color: '#C084FC', fontSize: 15, fontWeight: '600', fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium' },
-  titulo: { fontSize: 28, fontWeight: '600', color: '#FFF', letterSpacing: 0.5, fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium' },
-  sub: { fontSize: 14, color: 'rgba(255,255,255,0.45)', marginTop: 4, fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Light' },
   lista: { paddingHorizontal: 20, paddingBottom: 40 },
   card: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.06)',

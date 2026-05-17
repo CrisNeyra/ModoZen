@@ -13,47 +13,124 @@ import {
   Platform,
   Switch,
   Animated,
+  Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import notifee, { AuthorizationStatus } from '@notifee/react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { ListaPantallas } from '../navigation/AppNavigator'
 import { useAuth } from '../context/AuthContext';
 import { useIdioma } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import ScreenHeader from '../components/ScreenHeader';
 
-type Nav = NativeStackNavigationProp<any>;
+type Nav = NativeStackNavigationProp<ListaPantallas, 'Ajustes'>;
 interface Props { navigation: Nav; }
+
+const NOTIFICATIONS_PREF_KEY = '@modozen:notificaciones_habilitadas';
 
 const AjustesScreen: React.FC<Props> = ({ navigation }) => {
   const { cerrarSesion } = useAuth();
   const { idioma, t, cambiarIdioma } = useIdioma();
   const { themeMode, toggleTheme } = useTheme();
   const [notis, setNotis] = React.useState(false);
+  const [cargandoNotis, setCargandoNotis] = React.useState(false);
 
   // Animaciones
-  const animHeader = useRef(new Animated.Value(0)).current;
   const animSecciones = useRef([0, 1, 2, 3, 4].map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
-    Animated.timing(animHeader, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     Animated.stagger(100,
       animSecciones.map(a => Animated.spring(a, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }))
     ).start();
-  }, [animHeader, animSecciones]);
+  }, [animSecciones]);
+
+  useEffect(() => {
+    const syncNotificationToggle = async () => {
+      try {
+        const [savedPreference, settings] = await Promise.all([
+          AsyncStorage.getItem(NOTIFICATIONS_PREF_KEY),
+          notifee.getNotificationSettings(),
+        ]);
+
+        const hasPermission =
+          settings.authorizationStatus === AuthorizationStatus.AUTHORIZED ||
+          settings.authorizationStatus === AuthorizationStatus.PROVISIONAL;
+
+        const enabledByUser = savedPreference === 'true';
+        const enabled = enabledByUser && hasPermission;
+
+        setNotis(enabled);
+
+        if (enabledByUser && !hasPermission) {
+          await AsyncStorage.setItem(NOTIFICATIONS_PREF_KEY, 'false');
+        }
+      } catch {
+        setNotis(false);
+      }
+    };
+
+    void syncNotificationToggle();
+  }, []);
+
+  const mostrarErrorNotificaciones = () => {
+    Alert.alert(
+      idioma === 'es' ? 'No se pudieron activar las notificaciones' : 'Notifications could not be enabled',
+      idioma === 'es'
+        ? 'Asegurate de aceptar los permisos cuando la app lo solicite.'
+        : 'Please make sure to grant notification permission when prompted by the app.',
+    );
+  };
+
+  const onToggleNotificaciones = async (value: boolean) => {
+    if (cargandoNotis) {
+      return;
+    }
+
+    setCargandoNotis(true);
+    try {
+      if (value) {
+        const settings = await notifee.requestPermission();
+        const granted =
+          settings.authorizationStatus === AuthorizationStatus.AUTHORIZED ||
+          settings.authorizationStatus === AuthorizationStatus.PROVISIONAL;
+
+        if (!granted) {
+          await AsyncStorage.setItem(NOTIFICATIONS_PREF_KEY, 'false');
+          setNotis(false);
+          mostrarErrorNotificaciones();
+          return;
+        }
+
+        await AsyncStorage.setItem(NOTIFICATIONS_PREF_KEY, 'true');
+        setNotis(true);
+        return;
+      }
+
+      await AsyncStorage.setItem(NOTIFICATIONS_PREF_KEY, 'false');
+      await Promise.all([
+        notifee.cancelAllNotifications(),
+        notifee.cancelTriggerNotifications(),
+      ]);
+      setNotis(false);
+    } catch {
+      mostrarErrorNotificaciones();
+      setNotis(false);
+    } finally {
+      setCargandoNotis(false);
+    }
+  };
 
   return (
     <View style={s.raiz}>
       <LinearGradient colors={['#0F0F23', '#1A1A2E', '#16213E']} style={s.fondo}>
-        {/* Encabezado */}
-        <Animated.View style={[s.header, {
-          opacity: animHeader,
-          transform: [{ translateY: animHeader.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }],
-        }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} activeOpacity={0.7}>
-            <Text style={s.backTxt}>← {t.volver}</Text>
-          </TouchableOpacity>
-          <Text style={s.titulo}>{t.tituloAjustes}</Text>
-          <Text style={s.sub}>{t.subtituloAjustes}</Text>
-        </Animated.View>
+        <ScreenHeader
+          titulo={t.tituloAjustes}
+          subtitulo={t.subtituloAjustes}
+          onBack={() => navigation.goBack()}
+          textoVolver={`← ${t.volver}`}
+        />
 
         <ScrollView contentContainerStyle={s.contenido} showsVerticalScrollIndicator={false}>
           {/* Idioma */}
@@ -99,7 +176,8 @@ const AjustesScreen: React.FC<Props> = ({ navigation }) => {
                 <Text style={s.filaLabel}>{t.recordatoriosMeditacion}</Text>
                 <Switch
                   value={notis}
-                  onValueChange={setNotis}
+                  onValueChange={onToggleNotificaciones}
+                  disabled={cargandoNotis}
                   trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(147,51,234,0.5)' }}
                   thumbColor={notis ? '#9333EA' : '#555'}
                 />
@@ -173,24 +251,6 @@ const AjustesScreen: React.FC<Props> = ({ navigation }) => {
 const s = StyleSheet.create({
   raiz: { flex: 1 },
   fondo: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 16 },
-  backBtn: {
-    marginBottom: 16, backgroundColor: 'rgba(147,51,234,0.15)', alignSelf: 'flex-start',
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-    borderWidth: 1, borderColor: 'rgba(147,51,234,0.3)',
-  },
-  backTxt: {
-    color: '#C084FC', fontSize: 15, fontWeight: '600',
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium',
-  },
-  titulo: {
-    fontSize: 28, fontWeight: '600', color: '#FFF', letterSpacing: 0.5,
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium',
-  },
-  sub: {
-    fontSize: 14, color: 'rgba(255,255,255,0.45)', marginTop: 4,
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Light',
-  },
   contenido: { paddingHorizontal: 20, paddingBottom: 40 },
   seccion: {
     backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, padding: 20,

@@ -288,9 +288,13 @@ const VideosRelajantesScreen: React.FC<Props> = ({ navigation }) => {
   if (videoActivo) {
     const esSoloImagen = !!videoActivo.soloImagen;
     const enFullscreen = esPantallaCompleta;
-    const anchoMarcoRetrato = Math.min(screenWidth - 20, 560);
-    const altoMarcoRetrato = Math.min(screenHeight * 0.7, anchoMarcoRetrato * (9 / 16));
     const padPortraitHeader = insets.top + (Platform.OS === 'ios' ? 8 : 6);
+    const safeWidth = screenWidth - insets.left - insets.right;
+    const safeHeight = screenHeight - insets.top - insets.bottom;
+    const anchoMarcoRetrato = Math.min(safeWidth - 20, 560);
+    const altoTopBar = padPortraitHeader + 20;
+    const altoDisponible = safeHeight - altoTopBar;
+    const altoMarcoRetrato = Math.min(altoDisponible * 0.75, anchoMarcoRetrato * (9 / 16));
 
     return (
       <View style={s.playerContainer}>
@@ -320,15 +324,16 @@ const VideosRelajantesScreen: React.FC<Props> = ({ navigation }) => {
                 : [s.videoFramePortrait, { width: anchoMarcoRetrato, height: altoMarcoRetrato }],
             ]}
           >
-            {esSoloImagen ? (
-              <Image source={videoActivo.fuente} style={s.playerVideo} resizeMode="contain" />
-            ) : (
-              <Video
-                key={`${videoActivo.id}-${androidViewType}-${reintentoRender}`}
-                ref={reproductorRef}
-                source={videoActivo.fuente}
-                style={s.playerVideo}
-                resizeMode={enFullscreen ? 'cover' : 'contain'}
+            <View style={{ width: '100%', height: '100%', overflow: 'hidden', borderRadius: enFullscreen ? 0 : 16 }}>
+              {esSoloImagen ? (
+                <Image source={videoActivo.fuente} style={s.playerVideo} resizeMode="contain" />
+              ) : (
+                <Video
+                  key={`${videoActivo.id}-${androidViewType}-${reintentoRender}`}
+                  ref={reproductorRef}
+                  source={videoActivo.fuente}
+                  style={s.playerVideo}
+                  resizeMode="contain"
                 controls
                 paused={!isFocused}
                 ignoreSilentSwitch="ignore"
@@ -352,7 +357,8 @@ const VideosRelajantesScreen: React.FC<Props> = ({ navigation }) => {
                 }}
                 {...(Platform.OS === 'android' ? { viewType: androidViewType } : {})}
               />
-            )}
+              )}
+            </View>
 
             {(cargando || buffering) && !mensajeError && (
               <View style={s.loadingOverlay}>
@@ -649,21 +655,18 @@ const s = StyleSheet.create({
   },
   videoFrame: {
     position: 'relative',
-    overflow: 'hidden',
     backgroundColor: '#000',
   },
   videoFrameLandscape: {
     flex: 1,
-    width: '100%',
-    alignSelf: 'stretch',
     minHeight: 0,
     minWidth: 0,
-    borderRadius: 0,
   },
   videoFramePortrait: {
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
   },
   playerVideo: { ...StyleSheet.absoluteFillObject, zIndex: 0 },
   playerTapZone: {

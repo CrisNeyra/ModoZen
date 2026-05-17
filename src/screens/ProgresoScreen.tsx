@@ -15,14 +15,17 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { ListaPantallas } from '../navigation/AppNavigator'
 import { useIdioma } from '../context/LanguageContext';
 import { useStats } from '../context/StatsContext';
 import { useTheme } from '../context/ThemeContext';
+import { useAchievements } from '../context/AchievementsContext';
 import Dashboard from '../components/Dashboard';
+import ScreenHeader from '../components/ScreenHeader';
 
 
 
-type Nav = NativeStackNavigationProp<any>;
+type Nav = NativeStackNavigationProp<ListaPantallas, 'Progreso'>;
 interface Props { navigation: Nav; }
 
 interface Stats {
@@ -40,9 +43,10 @@ const STAT_CONFIGS = [
 ];
 
 const ProgresoScreen: React.FC<Props> = ({ navigation }) => {
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
   const { theme } = useTheme();
   const { tiempoTotalMinutos, sesionesTotales, rachaActual, mejorRacha, sesionesPorDia } = useStats();
+  const { logros, logrosDesbloqueados, totalLogros, verificarLogros } = useAchievements();
 
   const stats: Stats = {
     tiempoTotal: tiempoTotalMinutos,
@@ -51,20 +55,26 @@ const ProgresoScreen: React.FC<Props> = ({ navigation }) => {
     mejorRacha,
   };
 
+  useEffect(() => {
+    verificarLogros({
+      sesionesTotales: stats.sesionesTotales,
+      rachaActual: stats.rachaActual,
+      tiempoTotalMinutos: stats.tiempoTotal,
+    });
+  }, [sesionesTotales, rachaActual, tiempoTotalMinutos]);
+
   // Animaciones
-  const animHeader = useRef(new Animated.Value(0)).current;
   const animCards = useRef(STAT_CONFIGS.map(() => new Animated.Value(0))).current;
   const animSemanal = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(animHeader, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     Animated.stagger(80,
       animCards.map(a => Animated.spring(a, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }))
     ).start();
     setTimeout(() => {
       Animated.timing(animSemanal, { toValue: 1, duration: 600, useNativeDriver: true }).start();
     }, 400);
-  }, [animHeader, animCards, animSemanal]);
+  }, [animCards, animSemanal]);
 
   const labelsTraducidos = {
     tiempoTotal: t.tiempoTotal,
@@ -85,17 +95,12 @@ const ProgresoScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={s.raiz}>
       <LinearGradient colors={theme.fondoGradiente} style={s.fondo}>
-        {/* Encabezado */}
-        <Animated.View style={[s.header, {
-          opacity: animHeader,
-          transform: [{ translateY: animHeader.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }],
-        }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} activeOpacity={0.7}>
-            <Text style={s.backTxt}>← {t.volver}</Text>
-          </TouchableOpacity>
-          <Text style={s.titulo}>{t.tituloProgreso}</Text>
-          <Text style={s.sub}>{t.subtituloProgreso}</Text>
-        </Animated.View>
+        <ScreenHeader
+          titulo={t.tituloProgreso}
+          subtitulo={t.subtituloProgreso}
+          onBack={() => navigation.goBack()}
+          textoVolver={`← ${t.volver}`}
+        />
 
         <ScrollView contentContainerStyle={s.contenido} showsVerticalScrollIndicator={false}>
           {/* Grid de estadísticas */}
@@ -131,6 +136,31 @@ const ProgresoScreen: React.FC<Props> = ({ navigation }) => {
               </TouchableOpacity>
             </Animated.View>
           )}
+
+          {/* Logros */}
+          <View style={s.logrosSeccion}>
+            <Text style={s.logrosTitulo}>
+              {idioma === 'es' ? '🏅 Logros' : '🏅 Achievements'}
+              <Text style={s.logrosContador}> ({logrosDesbloqueados}/{totalLogros})</Text>
+            </Text>
+            <View style={s.logrosGrid}>
+              {logros.map(logro => (
+                <View key={logro.id} style={[s.logroCard, !logro.desbloqueado && s.logroBloqueado]}>
+                  <Text style={[s.logroIcono, !logro.desbloqueado && s.logroIconoBloqueado]}>
+                    {logro.desbloqueado ? logro.icono : '🔒'}
+                  </Text>
+                  <Text style={[s.logroNombre, !logro.desbloqueado && s.logroNombreBloqueado]}>
+                    {idioma === 'es' ? logro.nombre_es : logro.nombre_en}
+                  </Text>
+                  <Text style={[s.logroDesc, !logro.desbloqueado && s.logroDescBloqueado]} numberOfLines={2}>
+                    {logro.desbloqueado
+                      ? (idioma === 'es' ? logro.descripcion_es : logro.descripcion_en)
+                      : (idioma === 'es' ? 'Bloqueado' : 'Locked')}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
         </ScrollView>
       </LinearGradient>
     </View>
@@ -140,24 +170,6 @@ const ProgresoScreen: React.FC<Props> = ({ navigation }) => {
 const s = StyleSheet.create({
   raiz: { flex: 1 },
   fondo: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 16 },
-  backBtn: {
-    marginBottom: 16, backgroundColor: 'rgba(147,51,234,0.15)', alignSelf: 'flex-start',
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-    borderWidth: 1, borderColor: 'rgba(147,51,234,0.3)',
-  },
-  backTxt: {
-    color: '#C084FC', fontSize: 15, fontWeight: '600',
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium',
-  },
-  titulo: {
-    fontSize: 28, fontWeight: '600', color: '#FFF', letterSpacing: 0.5,
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium',
-  },
-  sub: {
-    fontSize: 14, color: 'rgba(255,255,255,0.45)', marginTop: 4,
-    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Light',
-  },
   contenido: { paddingHorizontal: 20, paddingBottom: 40 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 16 },
   statCardWrap: { width: '48%', marginBottom: 12 },
@@ -209,6 +221,41 @@ const s = StyleSheet.create({
     color: '#FFF', fontSize: 16, fontWeight: '500', letterSpacing: 0.5,
     fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium',
   },
+  logrosSeccion: { marginTop: 28 },
+  logrosTitulo: {
+    fontSize: 18, fontWeight: '700', color: '#FFF', marginBottom: 16,
+    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium',
+  },
+  logrosContador: {
+    fontSize: 14, fontWeight: '400', color: 'rgba(255,255,255,0.4)',
+    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir',
+  },
+  logrosGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10 },
+  logroCard: {
+    width: '48%',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 16,
+    padding: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  logroBloqueado: {
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderColor: 'rgba(255,255,255,0.04)',
+  },
+  logroIcono: { fontSize: 32, marginBottom: 8 },
+  logroIconoBloqueado: { opacity: 0.3 },
+  logroNombre: {
+    fontSize: 13, fontWeight: '600', color: '#FFF', textAlign: 'center', marginBottom: 4,
+    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Medium',
+  },
+  logroNombreBloqueado: { color: 'rgba(255,255,255,0.3)' },
+  logroDesc: {
+    fontSize: 11, color: 'rgba(255,255,255,0.5)', textAlign: 'center', lineHeight: 15,
+    fontFamily: Platform.OS === 'android' ? 'Roboto' : 'Avenir-Light',
+  },
+  logroDescBloqueado: { color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' },
 });
 
 export default ProgresoScreen;
