@@ -67,7 +67,7 @@ const ScreenHeader: React.FC<ScreenHeaderProps> = ({
 };
 
 const styles = StyleSheet.create({
-  fondo: { flex: 1 },
+  fondo: {},
   header: {
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,

@@ -45,7 +45,16 @@ const STAT_CONFIGS = [
 const ProgresoScreen: React.FC<Props> = ({ navigation }) => {
   const { t, idioma } = useIdioma();
   const { theme } = useTheme();
-  const { tiempoTotalMinutos, sesionesTotales, rachaActual, mejorRacha, sesionesPorDia } = useStats();
+  const {
+    tiempoTotalMinutos,
+    sesionesTotales,
+    rachaActual,
+    mejorRacha,
+    sesionesPorDia,
+    meditacionGuiadaUsada,
+    meditacionTemporizadorUsada,
+    meditacionRespiracionUsada,
+  } = useStats();
   const { logros, logrosDesbloqueados, totalLogros, verificarLogros } = useAchievements();
 
   const stats: Stats = {
@@ -60,8 +69,18 @@ const ProgresoScreen: React.FC<Props> = ({ navigation }) => {
       sesionesTotales: stats.sesionesTotales,
       rachaActual: stats.rachaActual,
       tiempoTotalMinutos: stats.tiempoTotal,
+      meditacionGuiadaUsada,
+      meditacionTemporizadorUsada,
+      meditacionRespiracionUsada,
     });
-  }, [sesionesTotales, rachaActual, tiempoTotalMinutos]);
+  }, [
+    sesionesTotales,
+    rachaActual,
+    tiempoTotalMinutos,
+    meditacionGuiadaUsada,
+    meditacionTemporizadorUsada,
+    meditacionRespiracionUsada,
+  ]);
 
   // Animaciones
   const animCards = useRef(STAT_CONFIGS.map(() => new Animated.Value(0))).current;

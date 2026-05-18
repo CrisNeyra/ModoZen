@@ -32,6 +32,9 @@ interface StatsComputed {
   rachaActual: number;
   mejorRacha: number;
   sesionesPorDia: Record<string, number>; // 'YYYY-MM-DD' → minutos
+  meditacionGuiadaUsada: boolean;
+  meditacionTemporizadorUsada: boolean;
+  meditacionRespiracionUsada: boolean;
 }
 
 interface StatsContextType extends StatsComputed {
@@ -116,6 +119,10 @@ const calcularStats = (data: StatsData): StatsComputed => {
   }
   if (rachaActual > mejorRacha) mejorRacha = rachaActual;
 
+  const meditacionGuiadaUsada = data.sesiones.some(s => /^[1-6]$/.test(s.sessionId));
+  const meditacionTemporizadorUsada = data.sesiones.some(s => s.sessionId.startsWith('timer-'));
+  const meditacionRespiracionUsada = data.sesiones.some(s => s.sessionId.startsWith('respiracion-'));
+
   return {
     diasSeguidos: rachaActual,
     minutosHoy,
@@ -124,6 +131,9 @@ const calcularStats = (data: StatsData): StatsComputed => {
     rachaActual,
     mejorRacha,
     sesionesPorDia,
+    meditacionGuiadaUsada,
+    meditacionTemporizadorUsada,
+    meditacionRespiracionUsada,
   };
 };
 
@@ -132,6 +142,7 @@ export const StatsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [computed, setComputed] = useState<StatsComputed>({
     diasSeguidos: 0, minutosHoy: 0, sesionesTotales: 0,
     tiempoTotalMinutos: 0, rachaActual: 0, mejorRacha: 0, sesionesPorDia: {},
+    meditacionGuiadaUsada: false, meditacionTemporizadorUsada: false, meditacionRespiracionUsada: false,
   });
 
   const cargar = useCallback(async () => {

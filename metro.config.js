@@ -10,7 +10,9 @@ const config = {
   resolver: {
     assetExts: ['mp4', 'bmp', 'jpg', 'png', 'gif', 'webp', 'tiff', 'svg', 'psd', 'wbmp', 'heic', 'mov', 'avi', 'mkv', 'm4v'],
     sourceExts: ['js', 'json', 'ts', 'tsx', 'jsx', 'mjs', 'cjs'],
+    blockList: [/node_modules[\\/].*[\\/]\.cxx[\\/]/],
   },
+  watchFolders: [],
 };
 
 module.exports = mergeConfig(getDefaultConfig(__dirname), config);

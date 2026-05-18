@@ -103,7 +103,11 @@ const AppNavigator: React.FC = () => {
     );
   }
 
-  const pantallaInicial = estaLogueado && !onboardingCompleto ? 'Onboarding' : 'Home';
+  const pantallaInicial: keyof ListaPantallas = !estaLogueado
+    ? 'Login'
+    : !onboardingCompleto
+      ? 'Onboarding'
+      : 'Home';
 
   return (
     <NavigationContainer onStateChange={onStateChange}>

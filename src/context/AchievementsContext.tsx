@@ -18,7 +18,14 @@ interface AchievementsContextType {
   logros: Logro[];
   logrosDesbloqueados: number;
   totalLogros: number;
-  verificarLogros: (stats: { sesionesTotales: number; rachaActual: number; tiempoTotalMinutos: number }) => Promise<void>;
+  verificarLogros: (stats: {
+    sesionesTotales: number;
+    rachaActual: number;
+    tiempoTotalMinutos: number;
+    meditacionGuiadaUsada: boolean;
+    meditacionTemporizadorUsada: boolean;
+    meditacionRespiracionUsada: boolean;
+  }) => Promise<void>;
 }
 
 const LOGROS_INICIALES: Logro[] = [
@@ -130,7 +137,14 @@ export const AchievementsProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const verificarLogros = useCallback(async (stats: { sesionesTotales: number; rachaActual: number; tiempoTotalMinutos: number }) => {
+  const verificarLogros = useCallback(async (stats: {
+    sesionesTotales: number;
+    rachaActual: number;
+    tiempoTotalMinutos: number;
+    meditacionGuiadaUsada: boolean;
+    meditacionTemporizadorUsada: boolean;
+    meditacionRespiracionUsada: boolean;
+  }) => {
     const ahora = new Date().toISOString();
     const horaActual = new Date().getHours();
 
@@ -157,6 +171,12 @@ export const AchievementsProvider: React.FC<{ children: ReactNode }> = ({ childr
           break;
         case '50-sesiones':
           desbloquear = stats.sesionesTotales >= 50;
+          break;
+        case 'explorador':
+          desbloquear =
+            stats.meditacionGuiadaUsada &&
+            stats.meditacionTemporizadorUsada &&
+            stats.meditacionRespiracionUsada;
           break;
         case 'nocturno':
           desbloquear = stats.sesionesTotales >= 1 && horaActual >= 22;

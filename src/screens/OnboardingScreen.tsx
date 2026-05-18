@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { ListaPantallas } from '../navigation/AppNavigator';
+import { useIdioma } from '../context/LanguageContext';
 
 const { width } = Dimensions.get('window');
 
@@ -63,12 +64,16 @@ const PASOS: PasoOnboarding[] = [
 ];
 
 const OnboardingScreen: React.FC<Props> = ({ navigation }) => {
+  const { idioma } = useIdioma();
   const [pasoActual, setPasoActual] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
   const pasosRef = useRef<PasoOnboarding[]>(PASOS);
 
   const paso = pasosRef.current[pasoActual];
   const esUltimo = pasoActual === PASOS.length - 1;
+  const esEspanol = idioma === 'es';
+  const titulo = esEspanol ? paso.titulo_es : paso.titulo_en;
+  const descripcion = esEspanol ? paso.desc_es : paso.desc_en;
 
   const avanzar = () => {
     if (esUltimo) {
@@ -105,12 +110,8 @@ const OnboardingScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={s.icono}>{paso.icono}</Text>
           </View>
 
-          <Text style={s.titulo}>
-            {pasoActual === 0 ? paso.titulo_es : paso.titulo_en}
-          </Text>
-          <Text style={s.descripcion}>
-            {pasoActual === 0 ? paso.desc_es : paso.desc_en}
-          </Text>
+          <Text style={s.titulo}>{titulo}</Text>
+          <Text style={s.descripcion}>{descripcion}</Text>
         </View>
 
         {/* Indicadores */}
